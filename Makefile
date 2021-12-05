@@ -22,5 +22,6 @@ PHONY += clean
 clean:
 	$(MAKE) -C $(MAKE_DIR) M=$(PWD) clean
 	rm -f format_disk_as_pantryfs
+	git checkout -- ref/* # module clean deletes the modules in ref/
 
 .PHONY: $(PHONY)
