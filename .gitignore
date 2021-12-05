@@ -1,10 +1,8 @@
 compile_commands.json
-/.clang-format
 .vscode/
 .gdb_history
 README.md
 .jump/
-trace.dat
 
 # Common editor swap files
 .*.swp
