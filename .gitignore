@@ -1,20 +1,11 @@
-#
-# Build products
-#
-*.o
-*.ko
-*.cmd
-Module.symvers
-format_disk_as_pantryfs
-modules.order
-*.mod
-*.mod.c
-.tmp_versions
-*.tgz
-*.gz
+compile_commands.json
+/.clang-format
+.vscode/
+.gdb_history
+README.md
+.jump/
+trace.dat
 
-#
 # Common editor swap files
-#
 .*.swp
 *~
