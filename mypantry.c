@@ -1,8 +1,13 @@
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+
 #include <linux/blkdev.h>
 #include <linux/buffer_head.h>
 #include <linux/fs.h>
 #include <linux/init.h>
 #include <linux/module.h>
+
+//#pragma GCC diagnostic pop
 
 #include "pantryfs_inode.h"
 #include "pantryfs_inode_ops.h"
