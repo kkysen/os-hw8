@@ -5,12 +5,13 @@ team_name := "FireFerrises"
 n_proc := `nproc`
 just_dir := justfile_directory()
 cwd := invocation_directory()
+sudo := "sudo -E env \"PATH=${PATH}\""
 
 default:
     just --list --unsorted
 
 install-program-dependencies:
-    sudo apt install \
+    {{sudo}} apt install \
         build-essential \
         curl \
         make \
@@ -70,7 +71,7 @@ reinstall-kedr:
     cd build
     cmake ..
     make -j{{n_proc}}
-    sudo make install
+    {{sudo}} make install
 
 # Paranthesized deps to avoid checkpatch repeated word warning
 make *args: (pre-make) (make-in "." args)
@@ -145,7 +146,7 @@ compile-commands: (make "clean")
         || true
 
 log *args:
-    sudo dmesg --kernel --reltime {{args}}
+    {{sudo}} dmesg --kernel --reltime {{args}}
 
 log-watch *args: (log "--follow-new" args)
 
@@ -172,7 +173,7 @@ run-mod mod_path *args:
     just unload-mod-by-path "{{mod_path}}"
     just log --color=always | tail -n "+$(($(cat log.length) + 1))"
     rm log.length
-    sudo -E env "PATH=${PATH}" just kedr-stop-no-sudo
+    {{sudo}} just kedr-stop-no-sudo
 
 test-cmd *args: (run-mod default_mod_path args)
 
@@ -225,10 +226,10 @@ is-mod-loaded-by-path path_=default_mod_path: (is-mod-loaded file_stem(path_))
 
 load-mod path=default_mod_path:
     just unload-mod-by-path "{{path}}"
-    sudo insmod "{{path}}"
+    {{sudo}} insmod "{{path}}"
 
 unload-mod name=file_stem(default_mod_path):
-    just is-mod-loaded "{{name}}" 2> /dev/null && sudo rmmod "{{name}}" || true
+    just is-mod-loaded "{{name}}" 2> /dev/null && {{sudo}} rmmod "{{name}}" || true
 
 # `path` is `path_` instead to appease checkpatch's repeated word warning
 unload-mod-by-path path_=default_mod_path: (unload-mod file_stem(path_))
@@ -722,3 +723,64 @@ symlink-readmes:
     fd '^README.txt$' --exec just symlink-in-dir '{//}' '{/}' '{/.}.md' --symbolic --force
 
 setup: symlink-readmes reinstall-kedr fmt compile-commands make check-patch
+
+test-ext2-no-sudo:
+    dd if=/dev/zero of=./ext2.img bs=1024 count=100
+
+explore-ext2:
+    #!/usr/bin/env bash
+    set -euox pipefail
+
+    img=./ext2.img
+    mnt=mnt
+
+    dd if=/dev/zero of="${img}" bs=1024 count=100
+    sudo modprobe loop
+    device="$(sudo losetup --find --show ext2.img)"
+    sudo mkfs --type ext2 "${device}"
+    sudo mkdir -p "${mnt}"
+    sudo mount "${device}" "${mnt}"
+    cd mnt
+    ls -al
+    sudo mkdir sub2
+    ls -al
+    cd sub2
+    ls -al
+    sudo mkdir sub2.1
+    ls -al
+    sudo touch file2.1
+    ls -al
+    cd ../../
+    sudo umount "${mnt}"
+    sudo losetup --find
+    sudo losetup --detach "${device}"
+    sudo losetup --find
+    ls -al "${mnt}"
+
+    rmdir "${mnt}"
+    rm "${img}"
+
+explore-pantry: (make "format_disk_as_pantryfs")
+    #!/usr/bin/env bash
+    set -euox pipefail
+
+    img=~/pantry_disk.img
+    mnt="/mnt/pantry"
+    mod="ref/pantry-x86.ko"
+
+    dd bs=4096 count=200 if=/dev/zero of="${img}"
+    device="$(sudo losetup --find --show ~/pantry_disk.img)"
+    sudo ./format_disk_as_pantryfs "${device}"
+    sudo insmod ref/pantry-x86.ko
+    sudo mkdir -p "${mnt}"
+    sudo mount -t pantryfs "${device}" "${mnt}"
+
+    # TODO
+
+    sudo umount "${mnt}"
+    sudo rmdir "${mnt}"
+    sudo rmmod pantry
+    sudo losetup --detach "${device}"
+    rm "${img}"
+
+part0: explore-ext2 explore-pantry
