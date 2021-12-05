@@ -7,3 +7,14 @@ README.md
 # Common editor swap files
 .*.swp
 *~
+
+*.o
+*.o.*
+*.ko
+*.mod.c
+*.mod
+*.cmd
+modules.order
+Module.symvers
+
+format_disk_as_pantryfs

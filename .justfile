@@ -1,6 +1,6 @@
 set shell := ["bash", "-c"]
 
-hw := "7"
+hw := "8"
 team_name := "FireFerrises"
 n_proc := `nproc`
 just_dir := justfile_directory()
@@ -15,17 +15,9 @@ install-program-dependencies:
         curl \
         make \
         python \
-        bc \
-        bison \
-        flex \
-        libelf-dev \
-        libssl-dev \
-        libncurses-dev \
-        dwarves \
         clang-format \
         bear \
-        rsync \
-        trace-cmd
+        "linux-headers-$(uname -r)"
     command -v cargo > /dev/null || curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
     cargo install cargo-quickinstall
     cargo quickinstall just
@@ -49,14 +41,6 @@ parallel-bash:
 map-lines pattern replacement:
     -rg '^{{pattern}}$' --replace '{{replacement}}' --color never
 
-lookup-uni name:
-    curl "https://directory.columbia.edu/people/search?filter.searchTerm={{replace(name, " ", "+")}}" \
-        2> /dev/null \
-        | rg '\?code=([a-zA-Z0-9]+)' --only-matching --replace '$1'
-
-get-git-uni:
-    just lookup-uni "$(git config user.name)"
-
 pre-make:
 
 make-with-makefile path *args:
@@ -68,54 +52,6 @@ make-in-recursive dir *args:
     fd '^Makefile$' "{{dir}}" \
         | just map-lines '(.*)' 'just make-with-makefile "$1" {{args}}' \
         | just parallel-bash
-
-make-lib *args: (make-in-recursive "user/lib" args)
-
-make-mods *args: (make-in-recursive "user/module" args)
-
-make-test *args: (make-in-recursive "user/test" args)
-
-make-user *args: (make-in-recursive "user/" args)
-
-make-non-kernel *args: (make-user args)
-
-make-kernel *args: (make-in "linux" args)
-
-modify-config:
-    #!/usr/bin/env bash
-    set -euox pipefail
-
-    config="./linux/scripts/config --file linux/.config"
-    uni="$(just get-git-uni)"
-    version="-${uni}-HW{{hw}}"
-
-    $config \
-        --enable BLK_DEV_LOOP \
-        --set-val SYSTEM_TRUSTED_KEYS '' \
-        --set-str LOCALVERSION "${version}" \
-        --enable STACKTRACE \
-        --enable KASAN \
-        --enable KASAN_GENERIC \
-        --enable KASAN_INLINE \
-        --disable KASAN_VMALLOC \
-        --disable TEST_KASAN_MODULE \
-        --enable UBSAN \
-        --disable UBSAN_TRAP \
-        --enable UBSAN_BOUNDS \
-        --enable UBSAN_MISC \
-        --disable UBSAN_SANITIZE_ALL \
-        --disable UBSAN_ALIGNMENT \
-        --disable TEST_UBSAN \
-        --disable RANDOMIZE_BASE
-
-generate-config: && modify-config
-    yes '' | just make-kernel localmodconfig
-
-apply-patch *args:
-    git apply {{args}} patch/ikea.patch
-
-setup-kernel: (make-kernel "mrproper") generate-config make-kernel install-kernel
-    sudo reboot now
 
 git-clone repo *args=("--recursive"):
     cd "{{invocation_directory()}}" && \
@@ -137,18 +73,7 @@ reinstall-kedr:
     sudo make install
 
 # Paranthesized deps to avoid checkpatch repeated word warning
-make: (pre-make) (make-non-kernel) (make-kernel)
-
-install-kernel-headers: (make-kernel "headers_install" "INSTALL_HDR_PATH=/usr")
-
-install-kernel-modules: (make-kernel "modules_install")
-
-install-kernel-only: (make-kernel "install")
-
-install-kernel-no-sudo: install-kernel-headers install-kernel-modules install-kernel-only
-
-install-kernel: make-kernel
-    sudo -E env "PATH=${PATH}" just install-kernel-no-sudo
+make *args: (pre-make) (make-in "." args)
 
 first-commit:
     git rev-list --max-parents=0 HEAD
@@ -197,14 +122,9 @@ refmt *paths:
         process.exit(1);
     });
 
-_clang_format:
-    ln --symbolic --force linux/.clang-format .
-
-_fmt *args:
+fmt *args:
     git clang-format --force {{args}}
     just refmt $(just modified-files {{args}})
-
-fmt *args: _clang_format (_fmt args)
 
 entire-diff *files:
     cd "{{cwd}}" && git diff "$(just first-commit)" -- {{files}}
@@ -218,53 +138,11 @@ pre-commit: pre-commit-fast pre-commit-slow
 gitui: pre-commit
     gitui
 
-compile-commands-non-kernel: (make-non-kernel "clean")
-    cd user && bear -- just make-non-kernel all
+compile-commands: (make "clean")
+    bear -- just make all
     command -v ccache > /dev/null \
-        && sd "$(which ccache)" "$(which gcc)" user/compile_commands.json \
+        && sd "$(which ccache)" "$(which gcc)" compile_commands.json \
         || true
-
-compile-commands-kernel *args:
-    cd linux && ./scripts/clang-tools/gen_compile_commands.py {{args}}
-
-compile-commands-kernel-dir dir_: (compile-commands-kernel "--output" join(dir_, "compile_commands.json") dir_)
-
-join-compile-commands *dirs:
-    #!/usr/bin/env node
-    const fsp = require("fs/promises");
-    const pathLib = require("path");
-
-    function openCompileCommands(dir) {
-        const path = pathLib.join(dir, "compile_commands.json");
-        return {
-            async read() {
-                const json = await fsp.readFile(path, "utf-8");
-                return JSON.parse(json);
-            },
-            async write(compileCommands) {
-                const json = JSON.stringify(compileCommands, null, 4);
-                await fsp.writeFile(path, json);
-            }
-        };
-    }
-
-    async function main() {
-        const dirs = "{{dirs}}".split(" ");
-        const compileCommandArrays = await Promise.all(dirs.map(dir => openCompileCommands(dir).read()));
-        const joinedCompileCommands = compileCommandArrays.flat();
-        await openCompileCommands(".").write(joinedCompileCommands);
-    }
-
-    main().catch(e => {
-        console.error(e);
-        process.exit(1);
-    });
-
-compile-commands-all: compile-commands-non-kernel compile-commands-kernel (join-compile-commands "user")
-
-compile-commands-min: compile-commands-non-kernel (join-compile-commands "user")
-
-compile-commands: compile-commands-min
 
 log *args:
     sudo dmesg --kernel --reltime {{args}}
@@ -318,9 +196,18 @@ untag name:
 checkout-tag:
     git checkout "hw{{hw}}handin"
 
-submit: (tag "hw" + hw + "handin" "Completed hw" + hw + ".")
+submit-part part_num:
+    git checkout "part{{part_num}}"
+    just tag "hw{{hw}}p{{part_num}}handin" "Completed hw{{hw}} part{{part_num}}."
 
-unsubmit: (untag "hw" + hw + "handin")
+unsubmit-part part_num:
+    just untag "hw{{hw}}p{{part_num}}handin"
+
+submit:
+    for i in {1..10}; do just submit-part $i; done
+
+unsubmit:
+    for i in {1..10}; do just unsubmit-part $i; done
 
 diff-command:
     command -v delta > /dev/null && echo delta || echo diff
@@ -328,7 +215,7 @@ diff-command:
 diff a b:
     "$(just diff-command)" "{{a}}" "{{b}}"
 
-default_mod_path := "user/module/cabinet/cabinet.ko"
+default_mod_path := "mypantry.ko"
 
 is-mod-loaded name=file_stem(default_mod_path):
     rg --quiet '^{{name}} ' /proc/modules
@@ -347,10 +234,10 @@ unload-mod name=file_stem(default_mod_path):
 unload-mod-by-path path_=default_mod_path: (unload-mod file_stem(path_))
 
 check_patch_ignores_common := "FILE_PATH_CHANGES,SPDX_LICENSE_TAG,MISSING_EOF_NEWLINE"
-check_patch_ignores_hw := "EXPORT_SYMBOL,ENOSYS,AVOID_EXTERNS,LINE_CONTINUATIONS"
+check_patch_ignores_hw := "ENOSYS,AVOID_EXTERNS,LINE_CONTINUATIONS,TRAILING_SEMICOLON"
 
 raw-check-patch *args:
-    ./linux/scripts/checkpatch.pl --max-line-length=80 --ignore "{{check_patch_ignores_common}},{{check_patch_ignores_hw}}" {{args}}
+    ./util/checkpatch.pl --notree --max-line-length=80 --ignore "{{check_patch_ignores_common}},{{check_patch_ignores_hw}}" {{args}}
 
 check-patch *files:
     cd "{{cwd}}" && just entire-diff {{files}} | just raw-check-patch
@@ -501,9 +388,6 @@ rename-branch old_name new_name:
     git push origin --delete "{{old_name}}"
     git checkout -
 
-trace *args:
-    sudo trace-cmd {{args}}
-
 # args = files -- extra args
 watch-kernel-files *args:
     #!/usr/bin/env node
@@ -512,6 +396,7 @@ watch-kernel-files *args:
     const assert = require("assert/strict");
     const fs = require("fs");
     const childProcess = require("child_process");
+    const os = require("os");
 
     function groupBy(a, f) {
         const o = {};
@@ -562,6 +447,10 @@ watch-kernel-files *args:
                     name,
                     value,
                     values,
+                    push(...values) {
+                        this.values.push(...values);
+                        this.value += " " + values.join(" ");
+                    },
                 };
             })
             .filter(Boolean)
@@ -571,7 +460,7 @@ watch-kernel-files *args:
     }
 
     function logArgs(args) {
-        const n = 10;
+        const n = 100;
         if (args.length > n * 2) {
             args = [...args.slice(0, 5), "...", ...args.slice(-5)];
         }
@@ -741,7 +630,7 @@ watch-kernel-files *args:
     }
 
     async function main() {
-        const relativeDir = "linux";
+        const relativeDir = `/lib/modules/${os.release()}/build`;
         cd("{{just_dir}}");
         const {outputs, extraArgs} = (() => {
             const args = "{{args}}";
@@ -755,7 +644,13 @@ watch-kernel-files *args:
                     if (!path.startsWith("./")) {
                         return path;
                     }
-                    return pathLib.relative(relativeDir, path);
+                    const relativePath = pathLib.relative(relativeDir, path);
+                    if (relativePath === "") {
+                        // "" is not a valid path
+                        return path;
+                    } else {
+                        return relativePath;
+                    }
                 }),
                 extraArgs: extraArgs ?? [],
             };
@@ -818,10 +713,12 @@ watch-kernel-files *args:
         process.exit(1);
     });
 
-watch-cabinet *args: (watch-kernel-files "./user/module/cabinet/" "--" args)
+watch-pantry *args: (watch-kernel-files "./mypantry.o" "--" args)
 
 symlink-in-dir dir_ target link *args:
     cd "{{dir_}}" && ln {{args}} "{{target}}" "{{link}}"
 
 symlink-readmes:
     fd '^README.txt$' --exec just symlink-in-dir '{//}' '{/}' '{/.}.md' --symbolic --force
+
+setup: symlink-readmes reinstall-kedr fmt compile-commands make check-patch
