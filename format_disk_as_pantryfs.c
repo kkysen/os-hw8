@@ -120,7 +120,7 @@ int main(int argc, char *argv[])
 
 	ret = write(fd, (char *)&inode, sizeof(inode));
 	passert(ret == sizeof(inode), "Write members dir inode");
-	
+
 	ret = lseek(fd, PFS_BLOCK_SIZE - 2 * sizeof(struct pantryfs_inode),
 		SEEK_CUR);
 	passert(ret >= 0, "Seek past inode table");
@@ -132,7 +132,7 @@ int main(int argc, char *argv[])
 
 	ret = write(fd, (char *) &dentry, sizeof(dentry));
 	passert(ret == sizeof(dentry), "Write dentry for hello.txt");
-	
+
 	len = PFS_BLOCK_SIZE - sizeof(struct pantryfs_dir_entry);
 	ret = write(fd, zeroes, len);
 	passert(ret == (ssize_t)len, "Pad to end of root dentries");
@@ -141,12 +141,12 @@ int main(int argc, char *argv[])
 	ret = write(fd, buf, sizeof(buf));
 	passert(ret == sizeof(buf), "Write hello.txt contents");
 
-	//move fd to correct block
+	// move fd to correct block
 	ret = lseek(fd, PFS_BLOCK_SIZE - 3 * sizeof(struct pantryfs_inode),
 		SEEK_CUR);
 	passert(ret >= 0, "Seek past inode table/hello.txt");
 
-	//dentry for members dir 
+	// dentry for members dir
 	dentry_reset(&dentry);
 	strncpy(dentry.filename, "members.txt", sizeof(dentry.filename));
 	dentry.active = 1;
