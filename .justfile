@@ -461,7 +461,7 @@ watch-kernel-files *args:
     }
 
     function logArgs(args) {
-        const n = 100;
+        const n = 10;
         if (args.length > n * 2) {
             args = [...args.slice(0, 5), "...", ...args.slice(-5)];
         }
