@@ -7,6 +7,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <stdbool.h>
 
 /* These are the same on a 64-bit architecture */
 #define timespec64 timespec
@@ -15,172 +16,235 @@
 #include "pantryfs_file.h"
 #include "pantryfs_sb.h"
 
-void passert(int condition, char *message)
+struct dentry_args {
+	const char *filename; // cstring
+	uint8_t inode_offset;
+};
+
+struct directory_file_args {
+	const struct dentry_args dentries[PFS_MAX_CHILDREN];
+};
+
+struct regular_file_args {
+	const char *data; // cstring
+};
+
+struct file_args {
+	// 0 means end-of-files and 0 permissions mean use default
+	mode_t mode;
+	union {
+		struct directory_file_args dir;
+		struct regular_file_args file;
+	};
+};
+
+bool p(bool ok, const char *message)
 {
-	printf("[%s] %s\n", condition ? " OK " : "FAIL", message);
-	if (!condition)
-		exit(1);
+	printf("[%s] %s\n", ok ? " OK " : "FAIL", message);
+	return ok;
 }
 
-void inode_reset(struct pantryfs_inode *inode)
+int format_disk(const char *disk_image_path, const struct file_args *files)
 {
-	struct timespec current_time;
+	int e = 0;
+	ssize_t n_written;
 
-	/* In case inode is uninitialized/previously used */
-	memset(inode, 0, sizeof(*inode));
-	memset(&current_time, 0, sizeof(current_time));
+	const int fd = open(disk_image_path, O_RDWR);
+	if (fd == -1) {
+		e = -1;
+		perror("Error opening the device");
+		goto ret;
+	}
 
-	/* Real UID and GID of the calling user */
-	inode->uid = getuid();
-	inode->gid = getgid();
+	struct stat stats = { 0 };
 
-	/* Current time UTC */
-	clock_gettime(CLOCK_REALTIME, &current_time);
-	inode->i_atime = inode->i_mtime = inode->i_ctime = current_time;
-}
+	if (fstat(fd, &stats) == -1) {
+		e = -1;
+		goto ret;
+	}
 
-void dentry_reset(struct pantryfs_dir_entry *dentry)
-{
-	memset(dentry, 0, sizeof(*dentry));
+	struct pantryfs_super_block super_block = {
+		.version = 1,
+		.magic = PANTRYFS_MAGIC_NUMBER,
+		.free_inodes = { 0 },
+		.free_data_blocks = { 0 },
+		.__padding__ = { 0 },
+	};
+
+	char inode_buf[PFS_BLOCK_SIZE] = { 0 };
+	struct pantryfs_inode *inodes = (struct pantryfs_inode *)inode_buf;
+
+	if (!p(lseek(fd, sizeof(super_block) + sizeof(inode_buf), SEEK_SET) !=
+		       -1,
+	       "Seek past super and inode blocks (writing them at the end)")) {
+		e = -1;
+		goto restore_file;
+	}
+
+	const struct file_args *file;
+	size_t i;
+
+	for (file = files, i = 0; file->mode; file++, i++) {
+		mode_t perms = file->mode & 0777;
+		mode_t type = file->mode & S_IFMT;
+		unsigned int nlink;
+		uint64_t file_size;
+		char data_buf[PFS_BLOCK_SIZE] = { 0 };
+
+		switch (type) {
+		case __S_IFDIR: {
+			struct pantryfs_dir_entry *dentries;
+			struct pantryfs_dir_entry *dentry;
+			const struct dentry_args *dentry_arg;
+			size_t j;
+
+			if (!perms)
+				perms = 0777;
+			nlink = 2; // start with 2 for '.' and link from parent
+			dentries = (struct pantryfs_dir_entry *)data_buf;
+			for (dentry_arg = file->dir.dentries, j = 0;
+			     dentry_arg->filename; dentry_arg++, j++) {
+				dentry = &dentries[j];
+				dentry->inode_no = PANTRYFS_ROOT_INODE_NUMBER +
+						   dentry_arg->inode_offset;
+				dentry->active = 1;
+				strncpy(dentry->filename, dentry_arg->filename,
+					sizeof(dentry->filename));
+				if (S_ISDIR(files[dentry_arg->inode_offset]
+						    .mode)) {
+					// add 1 for each subdirectory '..' link
+					nlink++;
+				}
+			}
+			file_size = 0;
+			break;
+		}
+		case __S_IFREG: {
+			if (!perms)
+				perms = 0666;
+			nlink = 1;
+			file_size = strlen(file->file.data);
+			memcpy(data_buf, file->file.data, file_size);
+			break;
+		}
+		default: {
+			fprintf(stderr,
+				"unknown file type: not directory or regular file: %o, i = %zu\n",
+				file->mode & S_IFMT, i);
+			e = -1;
+			goto restore_file;
+		}
+		}
+
+		struct timespec current_time = { 0 };
+
+		clock_gettime(CLOCK_REALTIME, &current_time);
+
+		struct pantryfs_inode inode = {
+			.mode = file->mode | perms,
+			.uid = getuid(),
+			.gid = getgid(),
+			.i_atime = current_time,
+			.i_mtime = current_time,
+			.i_ctime = current_time,
+			.nlink = nlink,
+			.data_block_number = PANTRYFS_ROOT_DATABLOCK_NUMBER + i,
+			.file_size = file_size,
+		};
+
+		SETBIT(super_block.free_inodes, i);
+		SETBIT(super_block.free_data_blocks, i);
+		inodes[i] = inode;
+
+		n_written = write(fd, data_buf, sizeof(data_buf));
+		if (!p(n_written == sizeof(data_buf), "Write a data block")) {
+			e = -1;
+			goto restore_file;
+		}
+	}
+
+	if (!p(lseek(fd, 0, SEEK_SET) != -1,
+	       "Seek back to super and inode blocks")) {
+		e = -1;
+		goto restore_file;
+	}
+	n_written = write(fd, (void *)&super_block, sizeof(super_block));
+	if (!p(n_written == PFS_BLOCK_SIZE, "Write superblock")) {
+		e = -1;
+		goto ret;
+	}
+	n_written = write(fd, (void *)&inode_buf, sizeof(inode_buf));
+	if (!p(n_written == sizeof(inode_buf), "Write inode block")) {
+		e = -1;
+		goto ret;
+	}
+
+	if (!(p(fsync(fd) == 0, "Flush writes to disk"))) {
+		e = -1;
+		goto ret;
+	}
+
+	printf("Device [%s] formatted successfully.\n", disk_image_path);
+	goto close;
+
+restore_file:
+	ftruncate(fd, stats.st_size);
+close:
+	close(fd);
+ret:
+	return e;
 }
 
 int main(int argc, char *argv[])
 {
-	int fd;
-	ssize_t ret;
-	struct pantryfs_super_block sb;
-	struct pantryfs_inode inode;
-	struct pantryfs_dir_entry dentry;
-
-	char *hello_contents = "Hello world!\n";
-	char *names_contents = "Isabelle, Khyber, WenChing\n";
-	char buf[PFS_BLOCK_SIZE];
-
-	size_t len;
-	const char zeroes[PFS_BLOCK_SIZE] = { 0 };
-
 	if (argc != 2) {
-		printf("Usage: ./format_disk_as_pantryfs DEVICE_NAME.\n");
-		return -1;
+		printf("Usage: ./%s DEVICE_NAME\n", argv[0]);
+		return EXIT_FAILURE;
 	}
-
-	fd = open(argv[1], O_RDWR);
-	if (fd == -1) {
-		perror("Error opening the device");
-		return -1;
+	const struct file_args files[] = {
+		{
+			.mode = S_IFDIR,
+			.dir = {
+				.dentries = {
+					{
+						.filename = "hello.txt",
+						.inode_offset = 1,
+					},
+					{
+						.filename = "members",
+						.inode_offset = 2,
+					},
+				},
+			},
+		},
+		{
+			.mode = S_IFREG,
+			.file = {
+				.data = "Hello world\n",
+			},
+		},
+		{
+			.mode = S_IFDIR,
+			.dir = {
+				.dentries = {
+					{
+						.filename = "names.txt",
+						.inode_offset = 3,
+					},
+				},
+			},
+		},
+		{
+			.mode = S_IFREG,
+			.file = {
+				.data = "Isabelle, Khyber, WenChing\n",
+			},
+		},
+		{0},
+	};
+	if (format_disk(argv[1], files) == -1) {
+		perror("");
+		return EXIT_FAILURE;
 	}
-	memset(&sb, 0, sizeof(sb));
-
-	sb.version = 1;
-	sb.magic = PANTRYFS_MAGIC_NUMBER;
-
-	/* The first two inodes and datablocks are taken by the root and
-	 * hello.txt file, respectively. Mark them as such.
-	 */
-	SETBIT(sb.free_inodes, 0);
-	SETBIT(sb.free_inodes, 1);
-	SETBIT(sb.free_inodes, 2); // members dir
-	SETBIT(sb.free_inodes, 3); // names.txt
-
-	SETBIT(sb.free_data_blocks, 0);
-	SETBIT(sb.free_data_blocks, 1);
-	SETBIT(sb.free_data_blocks, 2); // members dir
-	SETBIT(sb.free_data_blocks, 3); // names.txt
-
-	/* Write the superblock to the first block of the filesystem. */
-	ret = write(fd, (char *)&sb, sizeof(sb));
-	passert(ret == PFS_BLOCK_SIZE, "Write superblock");
-
-	inode_reset(&inode);
-	inode.mode = S_IFDIR | 0777;
-	inode.nlink = 3;
-	inode.data_block_number = PANTRYFS_ROOT_DATABLOCK_NUMBER;
-
-	/* Write the root inode starting in the second block. */
-	ret = write(fd, (char *)&inode, sizeof(inode));
-	passert(ret == sizeof(inode), "Write root inode");
-
-	/* The hello.txt file will take inode num following root inode num. */
-	inode_reset(&inode);
-	inode.nlink = 1;
-	inode.mode = S_IFREG | 0666;
-	inode.data_block_number = PANTRYFS_ROOT_DATABLOCK_NUMBER + 1;
-	inode.file_size = strlen(hello_contents);
-
-	ret = write(fd, (char *)&inode, sizeof(inode));
-	passert(ret == sizeof(inode), "Write hello.txt inode");
-
-	// inode for members dir
-	inode_reset(&inode);
-	inode.nlink = 2;
-	inode.mode = S_IFDIR | 0777;
-	inode.data_block_number = PANTRYFS_ROOT_DATABLOCK_NUMBER + 2;
-
-	ret = write(fd, (char *)&inode, sizeof(inode));
-	passert(ret == sizeof(inode), "Write members dir inode");
-
-	// inode for names.txt
-	inode_reset(&inode);
-	inode.nlink = 1;
-	inode.mode = S_IFREG | 0666;
-	inode.data_block_number = PANTRYFS_ROOT_DATABLOCK_NUMBER + 3;
-	inode.file_size = strlen(names_contents);
-
-	ret = write(fd, (char *)&inode, sizeof(inode));
-	passert(ret == sizeof(inode), "Write names.txt inode");
-
-	ret = lseek(fd, PFS_BLOCK_SIZE - 4 * sizeof(struct pantryfs_inode),
-		    SEEK_CUR);
-	passert(ret >= 0, "Seek past inode table");
-
-	dentry_reset(&dentry);
-	strncpy(dentry.filename, "hello.txt", sizeof(dentry.filename));
-	dentry.active = 1;
-	dentry.inode_no = PANTRYFS_ROOT_INODE_NUMBER + 1;
-
-	ret = write(fd, (char *)&dentry, sizeof(dentry));
-	passert(ret == sizeof(dentry), "Write dentry for hello.txt");
-
-	// dentry for members dir
-	dentry_reset(&dentry);
-	strncpy(dentry.filename, "members", sizeof(dentry.filename));
-	dentry.active = 1;
-	dentry.inode_no = PANTRYFS_ROOT_INODE_NUMBER + 2;
-
-	ret = write(fd, (char *) &dentry, sizeof(dentry));
-	passert(ret == sizeof(dentry), "Write dentry for members dir");
-
-	len = PFS_BLOCK_SIZE - 2 * sizeof(struct pantryfs_dir_entry);
-	ret = write(fd, zeroes, len);
-	passert(ret == (ssize_t)len, "Pad to end of root dentries");
-
-	strncpy(buf, hello_contents, sizeof(buf));
-	ret = write(fd, buf, sizeof(buf));
-	passert(ret == sizeof(buf), "Write hello.txt contents");
-
-	// dentry for names.txt
-	dentry_reset(&dentry);
-	strncpy(dentry.filename, "names.txt", sizeof(dentry.filename));
-	dentry.active = 1;
-	dentry.inode_no = PANTRYFS_ROOT_INODE_NUMBER + 3;
-
-	ret = write(fd, (char *)&dentry, sizeof(dentry));
-	passert(ret == sizeof(dentry), "Write dentry for names.txt");
-
-	len = PFS_BLOCK_SIZE - sizeof(struct pantryfs_dir_entry);
-	ret = write(fd, zeroes, len);
-	passert(ret == (ssize_t)len, "Pad to end of members dentries");
-
-	memset(buf, 0, sizeof(buf));
-	strncpy(buf, names_contents, sizeof(buf));
-	ret = write(fd, buf, sizeof(buf));
-	passert(ret == sizeof(buf), "Write members.txt contents");
-
-	ret = fsync(fd);
-	passert(ret == 0, "Flush writes to disk");
-
-	close(fd);
-	printf("Device [%s] formatted successfully.\n", argv[1]);
-
-	return 0;
+	return EXIT_SUCCESS;
 }
