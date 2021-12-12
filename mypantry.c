@@ -132,4 +132,4 @@ module_init(pantryfs_init);
 module_exit(pantryfs_exit);
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Group N");
+MODULE_AUTHOR("Group FireFerrises");
