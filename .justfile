@@ -27,6 +27,7 @@ install-program-dependencies:
     cargo quickinstall sd
     cargo quickinstall sk
     cargo quickinstall gitui
+    cargo quickinstall watchexec
 
 parallel-bash-commands:
     echo 'pids=()'
@@ -715,6 +716,9 @@ watch-kernel-files *args:
     });
 
 watch-pantry *args: (watch-kernel-files "./mypantry.o" "--" args)
+
+watch-format-pantry:
+    watchexec 'just make format_disk_as_pantryfs'
 
 symlink-in-dir dir_ target link *args:
     cd "{{dir_}}" && ln {{args}} "{{target}}" "{{link}}"
