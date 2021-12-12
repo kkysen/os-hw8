@@ -2,12 +2,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <stdbool.h>
 
 /* These are the same on a 64-bit architecture */
 #define timespec64 timespec
@@ -38,19 +36,24 @@ struct file_args {
 	};
 };
 
-void p(bool condition, const char *message)
+void passert(int condition, const char *message)
 {
 	printf("[%s] %s\n", condition ? " OK " : "FAIL", message);
 	if (!condition)
 		exit(1);
 }
 
+#define write_block(fd, buf, msg)                                              \
+	passert(write(fd, (void *)&buf, sizeof(buf)) == sizeof(buf),           \
+		"Write " msg " block");
+#define seek_block(fd, n, msg)                                                 \
+	passert(lseek(fd, (n) * PFS_BLOCK_SIZE, SEEK_SET) != -1, "Seek " msg)
+
 void format_disk(const char *disk_image_path, const struct file_args *files)
 {
 	int fd;
 	const struct file_args *file;
 	size_t i;
-	ssize_t n_written;
 	struct pantryfs_super_block super_block = {
 		.version = 1,
 		.magic = PANTRYFS_MAGIC_NUMBER,
@@ -62,63 +65,50 @@ void format_disk(const char *disk_image_path, const struct file_args *files)
 	struct pantryfs_inode *inodes = (struct pantryfs_inode *)inode_buf;
 
 	fd = open(disk_image_path, O_RDWR);
-	p(fd != -1, "Error opening the device");
-	p(lseek(fd, sizeof(super_block) + sizeof(inode_buf), SEEK_SET) != -1,
-	  "Seek past super and inode blocks (writing them at the end)");
+	passert(fd != -1, "Error opening the device");
+	seek_block(fd, 2, "past super and inode blocks");
 
 	for (file = files, i = 0; file->mode; file++, i++) {
 		mode_t perms = file->mode & 0777;
-		mode_t type = file->mode & S_IFMT;
 		unsigned int nlink;
 		uint64_t file_size;
 		char data_buf[PFS_BLOCK_SIZE] = { 0 };
 		struct timespec current_time = { 0 };
 
-		switch (type) {
-		case __S_IFDIR: {
-			struct pantryfs_dir_entry *dentries;
+		if (S_ISDIR(file->mode)) {
 			struct pantryfs_dir_entry *dentry;
-			const struct dentry_args *dentry_arg;
-			size_t j;
+			const struct dentry_args *arg;
 
 			if (!perms)
 				perms = 0777;
 			nlink = 2; // start with 2 for '.' and link from parent
-			dentries = (struct pantryfs_dir_entry *)data_buf;
-			for (dentry_arg = file->dir.dentries, j = 0;
-			     dentry_arg->filename; dentry_arg++, j++) {
-				dentry = &dentries[j];
-				dentry->inode_no = PANTRYFS_ROOT_INODE_NUMBER +
-						   dentry_arg->index;
+			for (arg = file->dir.dentries,
+			    dentry = (struct pantryfs_dir_entry *)data_buf;
+			     arg->filename; arg++, dentry++) {
+				dentry->inode_no =
+					PANTRYFS_ROOT_INODE_NUMBER + arg->index;
 				dentry->active = 1;
-				strncpy(dentry->filename, dentry_arg->filename,
+				strncpy(dentry->filename, arg->filename,
 					sizeof(dentry->filename));
-				if (S_ISDIR(files[dentry_arg->index].mode)) {
-					// add 1 for each subdirectory '..' link
+				// add 1 for each subdirectory '..' link
+				if (S_ISDIR(files[arg->index].mode))
 					nlink++;
-				}
 			}
 			file_size = 0;
-			break;
-		}
-		case __S_IFREG: {
+		} else if (S_ISREG(file->mode)) {
 			if (!perms)
 				perms = 0666;
 			nlink = 1;
 			file_size = strlen(file->file.data);
 			memcpy(data_buf, file->file.data, file_size);
-			break;
-		}
-		default: {
-			p(false, "file type not directory or regular file");
-			break;
-		}
+		} else {
+			passert(0, "file type not directory or regular file");
 		}
 		clock_gettime(CLOCK_REALTIME, &current_time);
 
 		SETBIT(super_block.free_inodes, i);
 		SETBIT(super_block.free_data_blocks, i);
-		inodes[i] = (struct pantryfs_inode) {
+		inodes[i] = (struct pantryfs_inode){
 			.mode = file->mode | perms,
 			.uid = getuid(),
 			.gid = getgid(),
@@ -129,18 +119,13 @@ void format_disk(const char *disk_image_path, const struct file_args *files)
 			.data_block_number = PANTRYFS_ROOT_DATABLOCK_NUMBER + i,
 			.file_size = file_size,
 		};
-		n_written = write(fd, data_buf, sizeof(data_buf));
-		p(n_written == sizeof(data_buf), "Write a data block");
+		write_block(fd, data_buf, "a data");
 	}
 
-	p(lseek(fd, 0, SEEK_SET) != -1, "Seek back to super and inode blocks");
-	n_written = write(fd, (void *)&super_block, sizeof(super_block));
-	p(n_written == PFS_BLOCK_SIZE, "Write superblock");
-	n_written = write(fd, (void *)&inode_buf, sizeof(inode_buf));
-	p(n_written == sizeof(inode_buf), "Write inode block");
-
-	p(fsync(fd) == 0, "Flush writes to disk");
-
+	seek_block(fd, 0, "back to super and inode blocks");
+	write_block(fd, super_block, "super");
+	write_block(fd, inode_buf, "inode");
+	passert(fsync(fd) == 0, "Flush writes to disk");
 	printf("Device [%s] formatted successfully.\n", disk_image_path);
 	close(fd);
 }
@@ -154,24 +139,26 @@ int main(int argc, char *argv[])
 	const struct file_args files[] = {
 		{
 			.mode = S_IFDIR,
-			.dir = { .dentries = {
+			.dir = {.dentries = {
 				{.filename = "hello.txt", .index = 1},
 				{.filename = "members", .index = 2},
+				{0},
 			}},
 		},
 		{
 			.mode = S_IFREG,
-			.file = { .data = "Hello world\n" },
+			.file = {.data = "Hello world!\n"},
 		},
 		{
 			.mode = S_IFDIR,
-			.dir = { .dentries = {
+			.dir = {.dentries = {
 				{.filename = "names.txt", .index = 3},
+				{0},
 			}},
 		},
 		{
 			.mode = S_IFREG,
-			.file = { .data = "Isabelle, Khyber, WenChing\n" },
+			.file = {.data = "Isabelle\nKhyber\nWenChing\n"},
 		},
 		{0},
 	};
