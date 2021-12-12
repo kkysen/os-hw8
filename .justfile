@@ -231,21 +231,21 @@ mod-name path=default_mod_path:
 is-mod-loaded name:
     rg --quiet '^{{name}} ' /proc/modules
 
-is-mod-loaded-by-path path=default_mod_path:
-    just is-mod-loaded "$(just mod-name "{{path}}")"
+is-mod-loaded-by-path path_=default_mod_path:
+    just is-mod-loaded "$(just mod-name "{{path_}}")"
 
 unload-mod name:
     just is-mod-loaded "{{name}}" 2> /dev/null && sudo rmmod "{{name}}" || true
 
-unload-mod-by-path path=default_mod_path:
-    just unload-mod "$(just mod-name "{{path}}")"
+unload-mod-by-path path_=default_mod_path:
+    just unload-mod "$(just mod-name "{{path_}}")"
 
 load-mod name path:
     just unload-mod "{{name}}"
     sudo insmod "{{path}}"
 
-load-mod-by-path path=default_mod_path:
-    just load-mod "$(just mod-name "{{path}}")" "{{path}}"
+load-mod-by-path path_=default_mod_path:
+    just load-mod "$(just mod-name "{{path_}}")" "{{path_}}"
 
 check_patch_ignores_common := "FILE_PATH_CHANGES,SPDX_LICENSE_TAG,MISSING_EOF_NEWLINE"
 check_patch_ignores_hw := "ENOSYS,AVOID_EXTERNS,LINE_CONTINUATIONS,TRAILING_SEMICOLON"
