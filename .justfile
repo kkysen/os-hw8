@@ -7,6 +7,8 @@ just_dir := justfile_directory()
 cwd := invocation_directory()
 sudo := "sudo -E env \"PATH=${PATH}\""
 
+# export PATH := `echo $PATH` + ":" + `sudo sh -c 'echo $PATH'`
+
 default:
     just --list --unsorted
 
@@ -167,12 +169,15 @@ run-mod mod_path *args:
     #!/usr/bin/env bash
     set -uo pipefail
 
+    mod_path="{{mod_path}}"
+    mod_name="$(just mod-name "${mod_path}")"
+
     just log | wc -l > log.length
     [[ "{{use_kedr}}" == "true" ]] && sudo kedr start "{{mod_path}}"
-    echo "running $(tput setaf 2){{file_stem(mod_path)}}$(tput sgr 0):"
-    just load-mod "{{mod_path}}"
+    echo "running $(tput setaf 2)${mod_name}$(tput sgr 0):"
+    just load-mod "${mod_name}" "${mod_path}"
     {{args}}
-    just unload-mod-by-path "{{mod_path}}"
+    just unload-mod "${mod_name}"
     just log --color=always | tail -n "+$(($(cat log.length) + 1))"
     rm log.length
     {{sudo}} just kedr-stop-no-sudo
@@ -220,21 +225,27 @@ diff a b:
 
 default_mod_path := "mypantry.ko"
 
-is-mod-loaded name=file_stem(default_mod_path):
+mod-name path=default_mod_path:
+    /usr/sbin/modinfo "{{path}}" | rg '^name: *(.*)$' --replace '$1'
+
+is-mod-loaded name:
     rg --quiet '^{{name}} ' /proc/modules
 
-# `path` is `path_` instead to appease checkpatch's repeated word warning
-is-mod-loaded-by-path path_=default_mod_path: (is-mod-loaded file_stem(path_))
+is-mod-loaded-by-path path=default_mod_path:
+    just is-mod-loaded "$(just mod-name "{{path}}")"
 
-load-mod path=default_mod_path:
-    just unload-mod-by-path "{{path}}"
-    {{sudo}} insmod "{{path}}"
+unload-mod name:
+    just is-mod-loaded "{{name}}" 2> /dev/null && sudo rmmod "{{name}}" || true
 
-unload-mod name=file_stem(default_mod_path):
-    just is-mod-loaded "{{name}}" 2> /dev/null && {{sudo}} rmmod "{{name}}" || true
+unload-mod-by-path path=default_mod_path:
+    just unload-mod "$(just mod-name "{{path}}")"
 
-# `path` is `path_` instead to appease checkpatch's repeated word warning
-unload-mod-by-path path_=default_mod_path: (unload-mod file_stem(path_))
+load-mod name path:
+    just unload-mod "{{name}}"
+    sudo insmod "{{path}}"
+
+load-mod-by-path path=default_mod_path:
+    just load-mod "$(just mod-name "{{path}}")" "{{path}}"
 
 check_patch_ignores_common := "FILE_PATH_CHANGES,SPDX_LICENSE_TAG,MISSING_EOF_NEWLINE"
 check_patch_ignores_hw := "ENOSYS,AVOID_EXTERNS,LINE_CONTINUATIONS,TRAILING_SEMICOLON"
@@ -765,45 +776,52 @@ explore-ext2:
     rmdir "${mnt}"
     rm "${img}"
 
+is-pantry-mounted:
+    mount | rg 'type (my)?pantryfs' > /dev/null
+
 explore-pantry func="all": (make "format_disk_as_pantryfs")
     #!/usr/bin/env bash
     set -euox pipefail
 
     img=~/pantry_disk.img
     mnt="/mnt/pantry"
-    mod="ref/pantry-x86.ko"
+    mod_path="ref/pantry-x86.ko"
+    mod_name="$(just mod-name "${mod_path}")"
     ll="/bin/ls -alF --inode"
 
     init() {
         dd bs=4096 count=200 if=/dev/zero of="${img}"
         device="$(sudo losetup --find --show "${img}")"
         sudo ./format_disk_as_pantryfs "${device}"
-        # sudo "$(which bat)" -A "${img}"
-        sudo insmod ref/pantry-x86.ko
+        just load-mod "${mod_name}" "${mod_path}"
         sudo mkdir -p "${mnt}"
         sudo mount -t pantryfs "${device}" "${mnt}"
     }
 
     deinit() {
-        sudo umount "${mnt}"
-        sudo rmdir "${mnt}"
-        sudo rmmod pantry
-        sudo losetup --detach "${device}"
-        rm "${img}"
+        just is-pantry-mounted && sudo umount "${mnt}" || true
+        [[ -d "${mnt}" ]] && sudo rmdir "${mnt}" || true
+        just unload-mod "${mod_name}"
+        [[ -f "${device}" ]] && sudo losetup --detach "${device}" || true
+        [[ -f "${img}" ]] && rm "${img}" || true
     }
 
     explore() {
+        return
         cd "${mnt}"
         ${ll} --recursive
         bat $(fd --type file)
     }
 
     all() {
-        init
-        (explore || true)
+        init && (explore) || true
         deinit
     }
 
     {{func}}
 
 part0: explore-ext2 explore-pantry
+
+test-part1: explore-pantry
+
+
