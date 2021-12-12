@@ -779,13 +779,13 @@ explore-ext2:
 is-pantry-mounted:
     mount | rg 'type (my)?pantryfs' > /dev/null
 
-explore-pantry func="all": (make "format_disk_as_pantryfs")
+explore-a-pantry mod_path func: (make "format_disk_as_pantryfs")
     #!/usr/bin/env bash
     set -euox pipefail
 
     img=~/pantry_disk.img
     mnt="/mnt/pantry"
-    mod_path="ref/pantry-x86.ko"
+    mod_path="{{mod_path}}"
     mod_name="$(just mod-name "${mod_path}")"
     ll="/bin/ls -alF --inode"
 
@@ -795,7 +795,7 @@ explore-pantry func="all": (make "format_disk_as_pantryfs")
         sudo ./format_disk_as_pantryfs "${device}"
         just load-mod "${mod_name}" "${mod_path}"
         sudo mkdir -p "${mnt}"
-        sudo mount -t pantryfs "${device}" "${mnt}"
+        sudo mount -t "${mod_name}fs" "${device}" "${mnt}"
     }
 
     deinit() {
@@ -819,6 +819,10 @@ explore-pantry func="all": (make "format_disk_as_pantryfs")
     }
 
     {{func}}
+
+explore-pantry func="all": (explore-a-pantry "ref/pantry-x86.ko" func)
+
+explore-mypantry func="all": (make) (explore-a-pantry "mypantry.ko" func)
 
 part0: explore-ext2 explore-pantry
 
