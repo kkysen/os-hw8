@@ -28,6 +28,7 @@ install-program-dependencies:
     cargo quickinstall sk
     cargo quickinstall gitui
     cargo quickinstall watchexec
+    cargo quickinstall bat
 
 parallel-bash-commands:
     echo 'pids=()'
@@ -794,6 +795,7 @@ explore-pantry func="all": (make "format_disk_as_pantryfs")
     explore() {
         cd "${mnt}"
         ${ll} --recursive
+        bat $(fd --type file)
     }
 
     all() {
