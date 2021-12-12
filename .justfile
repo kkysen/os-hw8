@@ -764,27 +764,44 @@ explore-ext2:
     rmdir "${mnt}"
     rm "${img}"
 
-explore-pantry: (make "format_disk_as_pantryfs")
+explore-pantry func="all": (make "format_disk_as_pantryfs")
     #!/usr/bin/env bash
     set -euox pipefail
 
     img=~/pantry_disk.img
     mnt="/mnt/pantry"
     mod="ref/pantry-x86.ko"
+    ll="/bin/ls -alF --inode"
 
-    dd bs=4096 count=200 if=/dev/zero of="${img}"
-    device="$(sudo losetup --find --show ~/pantry_disk.img)"
-    sudo ./format_disk_as_pantryfs "${device}"
-    sudo insmod ref/pantry-x86.ko
-    sudo mkdir -p "${mnt}"
-    sudo mount -t pantryfs "${device}" "${mnt}"
+    init() {
+        dd bs=4096 count=200 if=/dev/zero of="${img}"
+        device="$(sudo losetup --find --show "${img}")"
+        sudo ./format_disk_as_pantryfs "${device}"
+        # sudo "$(which bat)" -A "${img}"
+        sudo insmod ref/pantry-x86.ko
+        sudo mkdir -p "${mnt}"
+        sudo mount -t pantryfs "${device}" "${mnt}"
+    }
 
-    # TODO
+    deinit() {
+        sudo umount "${mnt}"
+        sudo rmdir "${mnt}"
+        sudo rmmod pantry
+        sudo losetup --detach "${device}"
+        rm "${img}"
+    }
 
-    sudo umount "${mnt}"
-    sudo rmdir "${mnt}"
-    sudo rmmod pantry
-    sudo losetup --detach "${device}"
-    rm "${img}"
+    explore() {
+        cd "${mnt}"
+        ${ll} --recursive
+    }
+
+    all() {
+        init
+        (explore || true)
+        deinit
+    }
+
+    {{func}}
 
 part0: explore-ext2 explore-pantry
