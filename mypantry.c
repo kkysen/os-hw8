@@ -131,9 +131,7 @@ int pantryfs_fill_super(struct super_block *sb, void *data __always_unused,
 	}
 	pantry_sb = (struct pantryfs_super_block *)buf_heads->sb_bh->b_data;
 	if (pantry_sb->magic != sb->s_magic) {
-		// or -EINVAL?
-		// is a medium a physical device or just any device?
-		e = -EMEDIUMTYPE;
+		e = -EINVAL;
 		if (!silent)
 			pr_err("/dev/%s is not formatted as %s, so could not mount it: found magic %llx instead of %lx",
 			       dev_name, fs_name, pantry_sb->magic,
