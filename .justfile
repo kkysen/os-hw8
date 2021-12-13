@@ -802,7 +802,7 @@ explore-a-pantry mod_path func: (make "format_disk_as_pantryfs")
         just is-pantry-mounted && sudo umount "${mnt}" || true
         [[ -d "${mnt}" ]] && sudo rmdir "${mnt}" || true
         just unload-mod "${mod_name}"
-        [[ -f "${device}" ]] && sudo losetup --detach "${device}" || true
+        [[ -b "${device}" ]] && sudo losetup --detach "${device}" || true
         [[ -f "${img}" ]] && rm "${img}" || true
     }
 
