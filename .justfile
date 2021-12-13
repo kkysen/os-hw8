@@ -835,3 +835,5 @@ test-part1: explore-pantry
 test-part2: explore-mypantry
 
 test-part3: explore-mypantry
+
+test-part4: explore-mypantry
