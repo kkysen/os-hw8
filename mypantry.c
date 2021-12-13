@@ -33,7 +33,7 @@ int pantryfs_iterate(struct file *filp, struct dir_context *ctx)
 	const struct pantryfs_inode *dentry_inode;
 
 	e = 0;
-	if (ctx->pos < 0 || (size_t) ctx->pos >= PFS_MAX_CHILDREN + num_dots) {
+	if (ctx->pos < 0 || (size_t)ctx->pos >= PFS_MAX_CHILDREN + num_dots) {
 		// quick check before running/allocating/reading anything
 		// negative pos is wrong
 		// don't want to segfault or overflow,
@@ -64,7 +64,7 @@ int pantryfs_iterate(struct file *filp, struct dir_context *ctx)
 		goto ret;
 	}
 	dentries = (const struct pantryfs_dir_entry *)block->b_data;
-	for (i = (size_t) ctx->pos - num_dots; i < PFS_MAX_CHILDREN; i++) {
+	for (i = (size_t)ctx->pos - num_dots; i < PFS_MAX_CHILDREN; i++) {
 		dentry = &dentries[i];
 		if (!dentry->active)
 			continue;
@@ -72,13 +72,16 @@ int pantryfs_iterate(struct file *filp, struct dir_context *ctx)
 		// since that's not stored in the dentry
 		inode_index = dentry->inode_no - 1;
 		// check if valid first; don't want to read uninitialized memory
-		if (!IS_SET(sb->free_inodes, inode_index)) {
+		if (inode_index >= PFS_MAX_INODES ||
+		    !IS_SET(sb->free_inodes, inode_index)) {
 			e = -EIO;
 			i++; // skip over bad dentry
 			goto end_of_loop;
 		}
 		dentry_inode = &inodes[inode_index];
-		if (!dir_emit(ctx, dentry->filename, strlen(dentry->filename),
+		if (!dir_emit(ctx, dentry->filename,
+			      strnlen(dentry->filename,
+				      sizeof(dentry->filename)),
 			      dentry->inode_no, S_DT(dentry_inode->mode))) {
 			// ran out of space to write dirents
 			// so don't ctx->pos++ so we can repeat this dentry
@@ -86,8 +89,8 @@ int pantryfs_iterate(struct file *filp, struct dir_context *ctx)
 		}
 	}
 end_of_loop:
-	ctx->pos = (loff_t) (i + num_dots);
-// free_block:
+	ctx->pos = (loff_t)(i + num_dots);
+	// free_block:
 	brelse(block);
 ret:
 	return e;
