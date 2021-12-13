@@ -105,6 +105,7 @@ int pantryfs_fill_super(struct super_block *sb, void *data __always_unused,
 	struct pantryfs_inode *pantry_inodes;
 	size_t inode_index;
 	struct pantryfs_inode *pantry_root_inode;
+	mode_t mode;
 	struct inode *root_inode;
 
 	e = 0;
@@ -149,14 +150,19 @@ int pantryfs_fill_super(struct super_block *sb, void *data __always_unused,
 	pantry_inodes = (struct pantryfs_inode *)buf_heads->i_store_bh->b_data;
 	inode_index = PANTRYFS_ROOT_INODE_NUMBER - 1; // 1-indexed
 	pantry_root_inode = &pantry_inodes[inode_index];
-	if (!S_ISDIR(pantry_root_inode->mode)) {
+	mode = pantry_root_inode->mode;
+	if (mode != (S_IFDIR | 0777)) {
+		// part2 instructions said to do this
+		mode = S_IFDIR | 0777;
+	}
+	if (!S_ISDIR(mode)) {
 		// this is also checked and handled fine later on,
 		// so just print the warning here
 		// e = -ENOTDIR;
 		if (!silent)
 			pr_err("root inode is a %s, not a %s: /dev/%s is incorrectly formatted for %s\n",
-			       file_type_name(pantry_root_inode->mode),
-			       file_type_name(S_IFDIR), dev_name, fs_name);
+			       file_type_name(mode), file_type_name(S_IFDIR),
+			       dev_name, fs_name);
 		// goto free_i_store_bh;
 	}
 
@@ -167,20 +173,21 @@ int pantryfs_fill_super(struct super_block *sb, void *data __always_unused,
 		e = -ENOMEM;
 		goto free_i_store_bh;
 	}
-	root_inode->i_op = &pantryfs_inode_ops;
-	root_inode->i_fop = &pantryfs_dir_ops;
-	root_inode->i_mode = pantry_root_inode->mode;
-	root_inode->i_uid =
-		make_kuid(current_user_ns(), pantry_root_inode->uid);
-	root_inode->i_gid =
-		make_kgid(current_user_ns(), pantry_root_inode->gid);
-	root_inode->i_atime = pantry_root_inode->i_atime;
-	root_inode->i_mtime = pantry_root_inode->i_mtime;
-	root_inode->i_ctime = pantry_root_inode->i_ctime;
-	set_nlink(root_inode, pantry_root_inode->nlink);
+	// part2 instructions said to do only set mode
+	// root_inode->i_op = &pantryfs_inode_ops;
+	// root_inode->i_fop = &pantryfs_dir_ops;
+	root_inode->i_mode = mode;
+	// root_inode->i_uid =
+	// 	make_kuid(current_user_ns(), pantry_root_inode->uid);
+	// root_inode->i_gid =
+	// 	make_kgid(current_user_ns(), pantry_root_inode->gid);
+	// root_inode->i_atime = pantry_root_inode->i_atime;
+	// root_inode->i_mtime = pantry_root_inode->i_mtime;
+	// root_inode->i_ctime = pantry_root_inode->i_ctime;
+	// set_nlink(root_inode, pantry_root_inode->nlink);
 	// file size <= PFS_BLOCK_SIZE = 4096
 	// so we can safely cast this to signed
-	root_inode->i_size = (loff_t)pantry_root_inode->file_size;
+	// root_inode->i_size = (loff_t)pantry_root_inode->file_size;
 	unlock_new_inode(root_inode);
 
 	sb->s_root = d_make_root(root_inode);
