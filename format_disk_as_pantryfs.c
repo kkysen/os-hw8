@@ -142,6 +142,13 @@ int main(int argc, char *argv[])
 			.dir = {.dentries = {
 				{.filename = "hello.txt", .index = 1},
 				{.filename = "members", .index = 2},
+				{.filename = "3", .index = 3},
+				{.filename = "4", .index = 4},
+				{.filename = "5", .index = 5},
+				{.filename = "6", .index = 6},
+				{.filename = "7", .index = 7},
+				{.filename = "8", .index = 8},
+				{.filename = "9", .index = 9},
 				{0},
 			}},
 		},
@@ -160,6 +167,13 @@ int main(int argc, char *argv[])
 			.mode = S_IFREG,
 			.file = {.data = "Isabelle\nKhyber\nWenChing\n"},
 		},
+		{.mode = S_IFREG, .file = {.data = "3"}},
+		{.mode = S_IFREG, .file = {.data = "4"}},
+		{.mode = S_IFREG, .file = {.data = "5"}},
+		{.mode = S_IFREG, .file = {.data = "6"}},
+		{.mode = S_IFREG, .file = {.data = "7"}},
+		{.mode = S_IFREG, .file = {.data = "8"}},
+		{.mode = S_IFREG, .file = {.data = "9"}},
 		{0},
 	};
 	format_disk(argv[1], files);
