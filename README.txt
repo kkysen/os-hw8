@@ -70,7 +70,26 @@ so we did that and commented out the full inode setting code.
 
 
 ### Part 3
-TODO
+This part is working.
+
+In `pantryfs_fill_super`, we also copied the other metadata fields
+from the `struct pantryfs_inode` to the `struct inode`.
+Not sure if that's necessary, but it let us `stat` the root directory.
+This also means that we set whatever mode
+is set for the root directory on disk;
+of course this still has to be a directory,
+but the permissions could not be `0777`.
+`format_disk_as_pantryfs` sets `0777`, though.
+
+Speaking of `format_disk_as_pantryfs`, we modified it
+to add a bunch of other files for testing.
+
+In `pantryfs_iterate`, we also check if any dentry `inode_no`
+is invalid, i.e. if it's out of bounds
+or points to a free inode in `sb->free_inodes`.
+If it is, we skip that dentry and return `EIO`.
+This way we avoid invalid reads if the disk image
+is corrupted/ill-formatted.
 
 
 ### Part 4
