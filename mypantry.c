@@ -14,10 +14,81 @@
 #include "pantryfs_sb.h"
 #include "pantryfs_sb_ops.h"
 
+#pragma GCC diagnostic pop // "-Wunused-parameter"
+
+static int i = 0;
+
 int pantryfs_iterate(struct file *filp, struct dir_context *ctx)
 {
-	return -ENOSYS;
+	int e;
+	const struct inode *vfs_inode;
+	const struct pantryfs_inode *inode;
+	const struct pantryfs_sb_buffer_heads *buf_heads;
+	const struct pantryfs_super_block *sb;
+	const struct pantryfs_inode *inodes;
+	struct buffer_head *block;
+	const struct pantryfs_dir_entry *dentries;
+	const struct pantryfs_dir_entry *dentry;
+	size_t inode_index;
+	const struct pantryfs_inode *dentry_inode;
+
+	e = 0;
+	if (i++ > 100) {
+		e = -ENOSYS;
+		goto ret;
+	}
+	vfs_inode = file_inode(filp);
+	if (!S_ISDIR(vfs_inode->i_mode)) {
+		e = -ENOTDIR;
+		goto ret;
+	}
+	if (vfs_inode->i_fop != &pantryfs_dir_ops) {
+		e = -EINVAL;
+		goto ret;
+	}
+	inode = (const struct pantryfs_inode *)vfs_inode->i_private;
+	buf_heads = (const struct pantryfs_sb_buffer_heads *)
+			    vfs_inode->i_sb->s_fs_info;
+	sb = (const struct pantryfs_super_block *)buf_heads->sb_bh->b_data;
+	inodes = (const struct pantryfs_inode *)buf_heads->i_store_bh->b_data;
+	block = sb_bread(vfs_inode->i_sb, inode->data_block_number);
+	if (!block) {
+		e = -ENOMEM;
+		goto ret;
+	}
+	dentries = (const struct pantryfs_dir_entry *)block->b_data;
+	for (; ctx->pos < PFS_MAX_CHILDREN; ctx->pos++) {
+		dentry = &dentries[ctx->pos];
+		if (dentry->active)
+			break;
+	}
+	if (ctx->pos >= PFS_MAX_CHILDREN) {
+		ctx->pos = 0; // reset
+		goto free_block; // no more dirents
+	}
+	ctx->pos++;
+	// need to look up inode to get file type
+	// since that's not stored in the dentry
+	inode_index = dentry->inode_no - 1;
+	// check if valid first; don't want to read uninitialized memory
+	if (!IS_SET(sb->free_inodes, inode_index)) {
+		e = -EIO;
+		goto free_block;
+	}
+	dentry_inode = &inodes[inode_index];
+	pr_info("ls: pos = %lld, filename = %s\n", ctx->pos, dentry->filename);
+	dir_emit(ctx, dentry->filename, strlen(dentry->filename),
+		 dentry->inode_no, S_DT(dentry_inode->mode));
+	goto free_block;
+
+free_block:
+	brelse(block);
+ret:
+	return e;
 }
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-parameter"
 
 ssize_t pantryfs_read(struct file *filp, char __user *buf, size_t len,
 		      loff_t *ppos)
@@ -149,10 +220,6 @@ int pantryfs_fill_super(struct super_block *sb, void *data __always_unused,
 	inode_index = PANTRYFS_ROOT_INODE_NUMBER - 1; // 1-indexed
 	pantry_root_inode = &pantry_inodes[inode_index];
 	mode = pantry_root_inode->mode;
-	if (mode != (S_IFDIR | 0777)) {
-		// part2 instructions said to do this
-		mode = S_IFDIR | 0777;
-	}
 	if (!S_ISDIR(mode)) {
 		// this is also checked and handled fine later on,
 		// so just print the warning here
@@ -171,21 +238,23 @@ int pantryfs_fill_super(struct super_block *sb, void *data __always_unused,
 		e = -ENOMEM;
 		goto free_i_store_bh;
 	}
-	// part2 instructions said to do only set mode
-	// root_inode->i_op = &pantryfs_inode_ops;
-	// root_inode->i_fop = &pantryfs_dir_ops;
+	root_inode->i_sb = sb;
+	root_inode->i_op = &pantryfs_inode_ops;
+	root_inode->i_fop =
+		S_ISDIR(mode) ? &pantryfs_dir_ops : &pantryfs_file_ops;
+	root_inode->i_private = pantry_root_inode;
 	root_inode->i_mode = mode;
-	// root_inode->i_uid =
-	// 	make_kuid(current_user_ns(), pantry_root_inode->uid);
-	// root_inode->i_gid =
-	// 	make_kgid(current_user_ns(), pantry_root_inode->gid);
-	// root_inode->i_atime = pantry_root_inode->i_atime;
-	// root_inode->i_mtime = pantry_root_inode->i_mtime;
-	// root_inode->i_ctime = pantry_root_inode->i_ctime;
-	// set_nlink(root_inode, pantry_root_inode->nlink);
+	root_inode->i_uid =
+		make_kuid(current_user_ns(), pantry_root_inode->uid);
+	root_inode->i_gid =
+		make_kgid(current_user_ns(), pantry_root_inode->gid);
+	root_inode->i_atime = pantry_root_inode->i_atime;
+	root_inode->i_mtime = pantry_root_inode->i_mtime;
+	root_inode->i_ctime = pantry_root_inode->i_ctime;
+	set_nlink(root_inode, pantry_root_inode->nlink);
 	// file size <= PFS_BLOCK_SIZE = 4096
 	// so we can safely cast this to signed
-	// root_inode->i_size = (loff_t)pantry_root_inode->file_size;
+	root_inode->i_size = (loff_t)pantry_root_inode->file_size;
 	unlock_new_inode(root_inode);
 
 	sb->s_root = d_make_root(root_inode);

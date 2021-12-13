@@ -807,10 +807,10 @@ explore-a-pantry mod_path func: (make "format_disk_as_pantryfs")
     }
 
     explore() {
-        return
         cd "${mnt}"
-        ${ll} --recursive
-        bat $(fd --type file)
+        ls
+        # ${ll} --recursive
+        # bat $(fd --type file)
     }
 
     all() {
@@ -829,3 +829,5 @@ part0: explore-ext2 explore-pantry
 test-part1: explore-pantry
 
 test-part2: explore-mypantry
+
+test-part3: explore-mypantry
