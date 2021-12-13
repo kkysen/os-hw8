@@ -105,4 +105,12 @@ TODO
 
 
 ### Part 7
+TODO
 
+
+### Part 8
+TODO
+
+
+### Part 9
+TODO
