@@ -25,7 +25,18 @@ TODO
 
 
 ### Part 2
-TODO
+This part is working.
+
+Originally we were copying all the root inode metadata (read from disk)
+to the VFS inode, but the instructions said to only set the mode,
+and to set it to `drwxrwxrwx` aka `S_IFDIR | 0777`,
+so we did that and commented out the full inode setting code.
+
+Also, in case the `pantryfs_super_block`'s magic doesn't match what's on disk,
+we weren't sure exactly what error to return.
+We returned `EMEDIUMTYPE`, which seems right
+if the pantryfs loop device is considered a medium,
+but we weren't sure if it countsif it's not a physical medium.
 
 
 ### Part 3
