@@ -808,7 +808,10 @@ explore-a-pantry mod_path func: (make "format_disk_as_pantryfs")
 
     explore() {
         cd "${mnt}"
-        ls
+        strace -etrace=file,getdents64 /bin/ls -a .
+        /bin/ls .
+        /bin/ls -a .
+        /bin/ls members
         # ${ll} --recursive
         # bat $(fd --type file)
     }
