@@ -16,10 +16,9 @@
 
 #pragma GCC diagnostic pop // "-Wunused-parameter"
 
-static int i = 0;
-
 int pantryfs_iterate(struct file *filp, struct dir_context *ctx)
 {
+	static const size_t num_dots = 2; // 2 for `.` and `..`
 	int e;
 	const struct inode *vfs_inode;
 	const struct pantryfs_inode *inode;
@@ -28,13 +27,21 @@ int pantryfs_iterate(struct file *filp, struct dir_context *ctx)
 	const struct pantryfs_inode *inodes;
 	struct buffer_head *block;
 	const struct pantryfs_dir_entry *dentries;
+	size_t i;
 	const struct pantryfs_dir_entry *dentry;
 	size_t inode_index;
 	const struct pantryfs_inode *dentry_inode;
 
 	e = 0;
-	if (i++ > 100) {
-		e = -ENOSYS;
+	if (ctx->pos < 0 || (size_t) ctx->pos >= PFS_MAX_CHILDREN + num_dots) {
+		// quick check before running/allocating/reading anything
+		// negative pos is wrong
+		// don't want to segfault or overflow,
+		// so return nothing in that case
+		goto ret;
+	}
+	if (!dir_emit_dots(filp, ctx)) {
+		// no space, try again next time
 		goto ret;
 	}
 	vfs_inode = file_inode(filp);
@@ -57,31 +64,30 @@ int pantryfs_iterate(struct file *filp, struct dir_context *ctx)
 		goto ret;
 	}
 	dentries = (const struct pantryfs_dir_entry *)block->b_data;
-	for (; ctx->pos < PFS_MAX_CHILDREN; ctx->pos++) {
-		dentry = &dentries[ctx->pos];
-		if (dentry->active)
-			break;
+	for (i = (size_t) ctx->pos - num_dots; i < PFS_MAX_CHILDREN; i++) {
+		dentry = &dentries[i];
+		if (!dentry->active)
+			continue;
+		// need to look up inode to get file type
+		// since that's not stored in the dentry
+		inode_index = dentry->inode_no - 1;
+		// check if valid first; don't want to read uninitialized memory
+		if (!IS_SET(sb->free_inodes, inode_index)) {
+			e = -EIO;
+			i++; // skip over bad dentry
+			goto end_of_loop;
+		}
+		dentry_inode = &inodes[inode_index];
+		if (!dir_emit(ctx, dentry->filename, strlen(dentry->filename),
+			      dentry->inode_no, S_DT(dentry_inode->mode))) {
+			// ran out of space to write dirents
+			// so don't ctx->pos++ so we can repeat this dentry
+			goto end_of_loop;
+		}
 	}
-	if (ctx->pos >= PFS_MAX_CHILDREN) {
-		ctx->pos = 0; // reset
-		goto free_block; // no more dirents
-	}
-	ctx->pos++;
-	// need to look up inode to get file type
-	// since that's not stored in the dentry
-	inode_index = dentry->inode_no - 1;
-	// check if valid first; don't want to read uninitialized memory
-	if (!IS_SET(sb->free_inodes, inode_index)) {
-		e = -EIO;
-		goto free_block;
-	}
-	dentry_inode = &inodes[inode_index];
-	pr_info("ls: pos = %lld, filename = %s\n", ctx->pos, dentry->filename);
-	dir_emit(ctx, dentry->filename, strlen(dentry->filename),
-		 dentry->inode_no, S_DT(dentry_inode->mode));
-	goto free_block;
-
-free_block:
+end_of_loop:
+	ctx->pos = (loff_t) (i + num_dots);
+// free_block:
 	brelse(block);
 ret:
 	return e;
