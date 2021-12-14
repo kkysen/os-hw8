@@ -192,6 +192,10 @@ current-branch:
 default-branch:
     git remote show origin | rg 'HEAD branch: (.*)$' --only-matching --replace '$1'
 
+create-branch name:
+    git checkout -b "{{name}}"
+    git push --set-upstream origin "{{name}}"
+
 tag name message:
     git tag -a -m "{{message}}" "{{name}}"
     git push origin "$(just current-branch)"
@@ -203,6 +207,8 @@ untag name:
 
 checkout-tag:
     git checkout "hw{{hw}}handin"
+
+create-part part_num: (create-branch "part" + part_num)
 
 submit-part part_num:
     git checkout "part{{part_num}}"
