@@ -341,7 +341,7 @@ int pantryfs_fill_super(struct super_block *sb, void *data __always_unused,
 	sb->s_op = &pantryfs_sb_ops;
 
 	fs_name = sb->s_type->name;
-	dev_name = sb->s_bdev->bd_disk->disk_name;
+	dev_name = sb->s_id;
 
 	buf_heads = kmalloc(sizeof(*buf_heads), GFP_KERNEL);
 	if (!buf_heads) {
