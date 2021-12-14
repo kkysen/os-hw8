@@ -16,6 +16,28 @@
 
 #pragma GCC diagnostic pop // "-Wunused-parameter"
 
+static const char *file_type_name(mode_t mode)
+{
+	switch (mode & S_IFMT) {
+	case S_IFSOCK:
+		return "socket";
+	case S_IFLNK:
+		return "link";
+	case S_IFREG:
+		return "regular file";
+	case S_IFBLK:
+		return "block device";
+	case S_IFDIR:
+		return "directory";
+	case S_IFCHR:
+		return "character device";
+	case S_IFIFO:
+		return "fifo";
+	default:
+		return "unknown";
+	}
+}
+
 int pantryfs_check_dir(const struct inode *inode)
 {
 	if (!S_ISDIR(inode->i_mode))
@@ -297,28 +319,6 @@ ret:
 	if (e < 0)
 		return ERR_PTR(e);
 	return child_dentry;
-}
-
-static const char *file_type_name(mode_t mode)
-{
-	switch (mode & S_IFMT) {
-	case S_IFSOCK:
-		return "socket";
-	case S_IFLNK:
-		return "link";
-	case S_IFREG:
-		return "regular file";
-	case S_IFBLK:
-		return "block device";
-	case S_IFDIR:
-		return "directory";
-	case S_IFCHR:
-		return "character device";
-	case S_IFIFO:
-		return "fifo";
-	default:
-		return "unknown";
-	}
 }
 
 int pantryfs_fill_super(struct super_block *sb, void *data __always_unused,
