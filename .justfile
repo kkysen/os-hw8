@@ -813,6 +813,12 @@ explore-a-pantry mod_path func: (make "format_disk_as_pantryfs")
         /bin/ls -a .
         /bin/ls members
         stat .
+        stat *
+        cd members
+        /bin/ls -a .
+        stat does_not_exist.txt
+        stat names.txt
+        stat ..
         # ${ll} --recursive
         # bat $(fd --type file)
     }

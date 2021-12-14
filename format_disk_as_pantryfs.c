@@ -149,6 +149,7 @@ int main(int argc, char *argv[])
 				{.filename = "7", .index = 7},
 				{.filename = "8", .index = 8},
 				{.filename = "9", .index = 9},
+				{.filename = "a", .index = 10},
 				{0},
 			}},
 		},
@@ -174,6 +175,12 @@ int main(int argc, char *argv[])
 		{.mode = S_IFREG, .file = {.data = "7"}},
 		{.mode = S_IFREG, .file = {.data = "8"}},
 		{.mode = S_IFREG, .file = {.data = "9"}},
+		{
+			.mode = S_IFDIR,
+			.dir = {.dentries = {
+				{0},
+			}},
+		},
 		{0},
 	};
 	format_disk(argv[1], files);
