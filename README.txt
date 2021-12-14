@@ -93,8 +93,16 @@ is corrupted/ill-formatted.
 
 
 ### Part 4
-TODO
+This part is working.
 
+Since there was starting to be a lot code in common between
+`pantryfs_{iterate,lookup,fill_super}`,
+we refactored a bunch of it to a few `struct`s and
+functions at the top of `mypantry.c`.
+For example, `struct pantryfs_root` conveniently stores the data
+accessible through the `struct super_block`'s `s_fs_info` field.
+And `struct pantryfs_dir` is all the dir related data
+looked up from a `struct inode` that's a directory.
 
 ### Part 5
 TODO
