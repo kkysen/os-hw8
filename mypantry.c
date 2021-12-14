@@ -309,8 +309,8 @@ struct dentry *pantryfs_lookup(struct inode *parent,
 		e = PTR_ERR(inode);
 		goto free_block;
 	}
-	pr_info("d_add: %s\n", child_dentry->d_name.name);
 	d_add(child_dentry, inode);
+	dget(child_dentry);
 	goto free_block;
 
 free_block:
