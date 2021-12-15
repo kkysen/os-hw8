@@ -287,21 +287,27 @@ ssize_t pantryfs_read(struct file *file, char __user *buf, size_t len,
 	int e;
 	ssize_t bytes_read;
 	const struct inode *inode;
-	loff_t size;
-	loff_t start;
+	size_t size;
+	size_t start;
 	size_t size_remaining;
-	loff_t end;
+	size_t end;
 	struct pantryfs_reg_file reg_file;
 
 	e = 0;
 	start = *ppos;
-	if (start < 0) {
+	if (*ppos < 0) {
 		e = -EINVAL;
 		goto ret;
 	}
+	start = (size_t) *ppos;
 	inode = file_inode(file);
-	size = min(inode->i_size, PFS_BLOCK_SIZE);
-	if (len == 0 || (size_t)start > size) {
+	if (inode->i_size < 0) {
+		bytes_read = 0;
+		goto ret;
+	}
+	size = (size_t) inode->i_size;
+	size = min(size, (size_t) PFS_BLOCK_SIZE);
+	if (len == 0 || start > size) {
 		bytes_read = 0;
 		goto ret;
 	}
@@ -310,9 +316,9 @@ ssize_t pantryfs_read(struct file *file, char __user *buf, size_t len,
 		goto ret;
 	}
 	// can't underflow b/c checked start > size
-	size_remaining = (size_t)(size - start);
+	size_remaining = size - start;
 	len = min(len, size_remaining);
-	// avoid signed overflows
+	// avoid potential overflows
 	end = start + len;
 
 	e = pantryfs_reg_file_get(inode, &reg_file);
@@ -322,8 +328,8 @@ ssize_t pantryfs_read(struct file *file, char __user *buf, size_t len,
 		e = -EFAULT;
 		goto free_block;
 	}
-	*ppos = end;
-	bytes_read = len;
+	*ppos = (loff_t) end;
+	bytes_read = (ssize_t) len;
 	goto free_block;
 
 free_block:
