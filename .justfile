@@ -794,6 +794,7 @@ explore-a-pantry mod_path func: (make "format_disk_as_pantryfs")
     mod_path="{{mod_path}}"
     mod_name="$(just mod-name "${mod_path}")"
     alias ls="/bin/ls"
+    device=""
 
     init() {
         dd bs=4096 count=200 if=/dev/urandom of="${img}"
@@ -808,6 +809,9 @@ explore-a-pantry mod_path func: (make "format_disk_as_pantryfs")
         just is-pantry-mounted && sudo umount "${mnt}" || true
         [[ -d "${mnt}" ]] && sudo rmdir "${mnt}" || true
         just unload-mod "${mod_name}"
+        if [[ "${device}" == "" ]]; then
+            device="$(sudo losetup --list | rg ${img} | cut -f1 -d' ')"
+        fi
         [[ -b "${device}" ]] && sudo losetup --detach "${device}" || true
         [[ -f "${img}" ]] && rm "${img}" || true
     }
