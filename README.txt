@@ -124,7 +124,12 @@ though again, we don't flush the new time to disk.
 
 
 ### Part 6
-TODO
+This part is working.
+
+We had already copied the inode metadata in the previous parts,
+so this part was pretty simple.
+We just fixed some small things (like setting the 512-byte block count).
+We mainly just added more testing for this part.
 
 
 ### Part 7
