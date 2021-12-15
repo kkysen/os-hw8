@@ -84,13 +84,13 @@ struct pantryfs_root pantryfs_root_new(struct super_block *sb)
 }
 
 struct pantryfs_file {
-	const struct inode *vfs_inode;
-	const struct pantryfs_inode *inode;
+	struct inode *vfs_inode;
+	struct pantryfs_inode *inode;
 	struct pantryfs_root root;
 	struct buffer_head *block;
 };
 
-int pantryfs_file_get(const struct inode *inode, struct pantryfs_file *file,
+int pantryfs_file_get(struct inode *inode, struct pantryfs_file *file,
 		      bool is_dir)
 {
 	int e;
@@ -100,7 +100,7 @@ int pantryfs_file_get(const struct inode *inode, struct pantryfs_file *file,
 	if (e < 0)
 		goto ret;
 	file->vfs_inode = inode;
-	file->inode = (const struct pantryfs_inode *)file->vfs_inode->i_private;
+	file->inode = (struct pantryfs_inode *)file->vfs_inode->i_private;
 	file->root = pantryfs_root_new(file->vfs_inode->i_sb);
 	file->block =
 		sb_bread(file->root.vfs_sb, file->inode->data_block_number);
@@ -118,7 +118,7 @@ struct pantryfs_dir {
 	struct pantryfs_dir_entry *dentries;
 };
 
-int pantryfs_dir_get(const struct inode *inode, struct pantryfs_dir *dir)
+int pantryfs_dir_get(struct inode *inode, struct pantryfs_dir *dir)
 {
 	int e;
 
@@ -137,8 +137,7 @@ struct pantryfs_reg_file {
 	char *data;
 };
 
-int pantryfs_reg_file_get(const struct inode *inode,
-			  struct pantryfs_reg_file *file)
+int pantryfs_reg_file_get(struct inode *inode, struct pantryfs_reg_file *file)
 {
 	int e;
 
@@ -235,6 +234,9 @@ int pantryfs_iterate(struct file *file, struct dir_context *ctx)
 	size_t i;
 
 	e = 0;
+	e = pantryfs_dir_get(file_inode(file), &dir);
+	if (e < 0)
+		goto ret;
 	if (ctx->pos < 0 || (size_t)ctx->pos >= PFS_MAX_CHILDREN + num_dots) {
 		// quick check before running/allocating/reading anything
 		// negative pos is wrong
@@ -246,9 +248,8 @@ int pantryfs_iterate(struct file *file, struct dir_context *ctx)
 		// no space, try again next time
 		goto ret;
 	}
-	e = pantryfs_dir_get(file_inode(file), &dir);
-	if (e < 0)
-		goto ret;
+	ktime_get_real_ts64(&dir.file.vfs_inode->i_atime);
+	dir.file.inode->i_atime = dir.file.vfs_inode->i_atime;
 	for (i = (size_t)ctx->pos - num_dots; i < PFS_MAX_CHILDREN; i++) {
 		const struct pantryfs_dir_entry *dentry;
 		const struct pantryfs_inode *dentry_inode;
@@ -286,7 +287,7 @@ ssize_t pantryfs_read(struct file *file, char __user *buf, size_t len,
 {
 	int e;
 	ssize_t bytes_read;
-	const struct inode *inode;
+	struct inode *inode;
 	size_t size;
 	size_t start;
 	size_t size_remaining;
