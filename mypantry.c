@@ -50,7 +50,7 @@ int pantryfs_iterate(struct file *filp, struct dir_context *ctx)
 		goto ret;
 	}
 	if (vfs_inode->i_fop != &pantryfs_dir_ops) {
-		e = -EINVAL;
+		e = -EIO;
 		goto ret;
 	}
 	inode = (const struct pantryfs_inode *)vfs_inode->i_private;
