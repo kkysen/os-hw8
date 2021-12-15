@@ -300,14 +300,14 @@ ssize_t pantryfs_read(struct file *file, char __user *buf, size_t len,
 		e = -EINVAL;
 		goto ret;
 	}
-	start = (size_t) *ppos;
+	start = (size_t)*ppos;
 	inode = file_inode(file);
 	if (inode->i_size < 0) {
 		bytes_read = 0;
 		goto ret;
 	}
-	size = (size_t) inode->i_size;
-	size = min(size, (size_t) PFS_BLOCK_SIZE);
+	size = (size_t)inode->i_size;
+	size = min(size, (size_t)PFS_BLOCK_SIZE);
 	if (len == 0 || start > size) {
 		bytes_read = 0;
 		goto ret;
@@ -318,7 +318,7 @@ ssize_t pantryfs_read(struct file *file, char __user *buf, size_t len,
 	}
 	// can't underflow b/c checked start > size
 	size_remaining = size - start;
-	len = min(len, size_remaining);
+	len = min_t(size_t, len, size_remaining);
 	// avoid potential overflows
 	end = start + len;
 
@@ -329,8 +329,8 @@ ssize_t pantryfs_read(struct file *file, char __user *buf, size_t len,
 		e = -EFAULT;
 		goto free_block;
 	}
-	*ppos = (loff_t) end;
-	bytes_read = (ssize_t) len;
+	*ppos = (loff_t)end;
+	bytes_read = (ssize_t)len;
 	goto free_block;
 
 free_block:
