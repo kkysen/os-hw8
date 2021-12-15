@@ -295,7 +295,7 @@ ssize_t pantryfs_read(struct file *file, char __user *buf, size_t len,
 		goto ret;
 	}
 	inode = file_inode(file);
-	size = inode->i_size;
+	size = min(inode->i_size, PFS_BLOCK_SIZE);
 	if (len == 0 || (size_t) start > size) {
 		bytes_read = 0;
 		goto ret;
