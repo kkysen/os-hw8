@@ -47,9 +47,11 @@ int pantryfs_check_file(const struct inode *inode, bool is_dir)
 		// only directories and regular files allowed
 		return -EIO;
 	}
-	if (inode->i_fop != (S_ISDIR(mode) ? &pantryfs_dir_ops : &pantryfs_file_ops)) {
+	if ((inode->i_sb->s_op != &pantryfs_sb_ops) ||
+	    (inode->i_op != &pantryfs_inode_ops) ||
+	    (inode->i_fop !=
+	     (S_ISDIR(mode) ? &pantryfs_dir_ops : &pantryfs_file_ops)))
 		return -EIO;
-	}
 	if (is_dir) {
 		if (!S_ISDIR(mode))
 			return -ENOTDIR;
@@ -88,7 +90,8 @@ struct pantryfs_file {
 	struct buffer_head *block;
 };
 
-int pantryfs_file_get(const struct inode *inode, struct pantryfs_file *file, bool is_dir)
+int pantryfs_file_get(const struct inode *inode, struct pantryfs_file *file,
+		      bool is_dir)
 {
 	int e;
 
@@ -99,7 +102,8 @@ int pantryfs_file_get(const struct inode *inode, struct pantryfs_file *file, boo
 	file->vfs_inode = inode;
 	file->inode = (const struct pantryfs_inode *)file->vfs_inode->i_private;
 	file->root = pantryfs_root_new(file->vfs_inode->i_sb);
-	file->block = sb_bread(file->root.vfs_sb, file->inode->data_block_number);
+	file->block =
+		sb_bread(file->root.vfs_sb, file->inode->data_block_number);
 	if (!file->block) {
 		e = -ENOMEM;
 		goto ret;
@@ -133,7 +137,8 @@ struct pantryfs_reg_file {
 	char *data;
 };
 
-int pantryfs_reg_file_get(const struct inode *inode, struct pantryfs_reg_file *file)
+int pantryfs_reg_file_get(const struct inode *inode,
+			  struct pantryfs_reg_file *file)
 {
 	int e;
 
@@ -296,7 +301,7 @@ ssize_t pantryfs_read(struct file *file, char __user *buf, size_t len,
 	}
 	inode = file_inode(file);
 	size = min(inode->i_size, PFS_BLOCK_SIZE);
-	if (len == 0 || (size_t) start > size) {
+	if (len == 0 || (size_t)start > size) {
 		bytes_read = 0;
 		goto ret;
 	}
@@ -304,11 +309,13 @@ ssize_t pantryfs_read(struct file *file, char __user *buf, size_t len,
 		e = -EFAULT;
 		goto ret;
 	}
-	size_remaining = (size_t) (size - start); // can't underflow b/c checked start > size
-	len = min(len, size_remaining); // avoid signed overflows in next line
+	// can't underflow b/c checked start > size
+	size_remaining = (size_t)(size - start);
+	len = min(len, size_remaining);
+	// avoid signed overflows
 	end = start + len;
 
-	e = pantryfs_reg_file_get(file_inode(file), &reg_file);
+	e = pantryfs_reg_file_get(inode, &reg_file);
 	if (e < 0)
 		goto ret;
 	if (copy_to_user(buf, &reg_file.data[start], len) != 0) {
@@ -323,7 +330,7 @@ free_block:
 	brelse(reg_file.file.block);
 ret:
 	if (e < 0)
-		return (ssize_t) e;
+		return (ssize_t)e;
 	return bytes_read;
 }
 
