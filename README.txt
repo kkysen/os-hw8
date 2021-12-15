@@ -105,7 +105,14 @@ And `struct pantryfs_dir` is all the dir related data
 looked up from a `struct inode` that's a directory.
 
 ### Part 5
-TODO
+This part is working.
+
+With the previous refactorings, `pantryfs_read` was pretty simple.
+We also checked as many error/zero read conditions as soon as possible
+before doing any possible disk reads.
+We also checked carefully to avoid overflows,
+especially because `len` is from the user and it's mixed with `loff_t`s,
+and signed integer overflow is UB.
 
 
 ### Part 6
