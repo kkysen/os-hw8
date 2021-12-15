@@ -38,7 +38,8 @@ static const char *file_type_name(mode_t mode)
 	}
 }
 
-int pantryfs_file_check(const struct inode *inode, bool is_dir)
+// make sure nothing weird happened to the inode
+int pantryfs_file_soundness_check(const struct inode *inode)
 {
 	mode_t mode;
 
@@ -52,11 +53,23 @@ int pantryfs_file_check(const struct inode *inode, bool is_dir)
 	    (inode->i_fop !=
 	     (S_ISDIR(mode) ? &pantryfs_dir_ops : &pantryfs_file_ops)))
 		return -EIO;
-	if (is_dir) {
-		if (!S_ISDIR(mode))
+	return 0;
+}
+
+int pantryfs_file_check(const struct inode *inode, bool expecting_dir)
+{
+	int e;
+	bool is_dir;
+
+	e = pantryfs_file_soundness_check(inode);
+	if (e < 0)
+		return e;
+	is_dir = S_ISDIR(inode->i_mode);
+	if (expecting_dir) {
+		if (!is_dir)
 			return -ENOTDIR;
 	} else {
-		if (S_ISDIR(mode))
+		if (is_dir)
 			return -EISDIR;
 	}
 	return 0;
@@ -79,7 +92,7 @@ struct pantryfs_root {
 	struct pantryfs_inode *inodes;
 };
 
-struct pantryfs_root pantryfs_root_new(struct super_block *sb)
+struct pantryfs_root pantryfs_root_get(struct super_block *sb)
 {
 	const struct pantryfs_sb_buffer_heads *buf_heads =
 		(const struct pantryfs_sb_buffer_heads *)sb->s_fs_info;
@@ -104,13 +117,13 @@ int pantryfs_file_get(struct inode *inode, struct pantryfs_file *file)
 {
 	file->vfs_inode = inode;
 	file->inode = (struct pantryfs_inode *)file->vfs_inode->i_private;
-	file->root = pantryfs_root_new(file->vfs_inode->i_sb);
+	file->root = pantryfs_root_get(file->vfs_inode->i_sb);
 	file->block =
 		sb_bread(file->root.vfs_sb, file->inode->data_block_number);
 	if (!file->block)
 		return -ENOMEM;
-	ktime_get_real_ts64(&file->vfs_inode->i_atime);
-	file->inode->i_atime = file->vfs_inode->i_atime;
+	ktime_get_real_ts64(&inode->i_atime);
+	file->inode->i_atime = inode->i_atime;
 	return 0;
 }
 
@@ -252,11 +265,10 @@ ssize_t pantryfs_read_or_write(struct file *file, char __user *buf, size_t len,
 		e = -EIO;
 		goto ret;
 	}
-	if (write) {
+	if (write)
 		size = PFS_BLOCK_SIZE;
-	} else {
+	else
 		size = min_t(size_t, inode->i_size, PFS_BLOCK_SIZE);
-	}
 	if (len == 0 || start > size) {
 		len = 0;
 		goto ret;
@@ -281,25 +293,23 @@ ssize_t pantryfs_read_or_write(struct file *file, char __user *buf, size_t len,
 		reg_file.file.inode->i_mtime = inode->i_mtime;
 	}
 	ptr = &reg_file.data[start];
-	if (write) {
+	if (write)
 		bytes_left = copy_from_user(ptr, buf, len);
-	} else {
+	else
 		bytes_left = copy_to_user(buf, ptr, len);
-	}
 	if (bytes_left > 0) {
 		e = -EFAULT;
 		goto free_block;
 	}
-	if (write) {
+	if (write)
 		mark_buffer_dirty_inode(reg_file.file.block, inode);
-	}
 	*ppos += len;
 free_block:
 	brelse(reg_file.file.block);
 ret:
 	if (e < 0)
-		return (ssize_t) e;
-	return (ssize_t) len;
+		return (ssize_t)e;
+	return (ssize_t)len;
 }
 
 int pantryfs_iterate(struct file *file, struct dir_context *ctx)
@@ -388,10 +398,39 @@ int pantryfs_unlink(struct inode *dir, struct dentry *dentry)
 
 #pragma GCC diagnostic pop // "-Wunused-parameter"
 
-int pantryfs_write_inode(struct inode *inode __always_unused,
+int pantryfs_write_inode(struct inode *mut_inode,
 			 struct writeback_control *wbc __always_unused)
 {
-	return -ENOSYS;
+	int e;
+	const struct inode *inode;
+	struct pantryfs_inode *pantry_inode;
+	struct pantryfs_root root;
+
+	e = 0;
+	inode = mut_inode;
+	e = pantryfs_file_soundness_check(inode);
+	if (e < 0)
+		goto ret;
+	if (inode->i_size < 0 || inode->i_size > PFS_BLOCK_SIZE) {
+		e = -EIO;
+		goto ret;
+	}
+	pantry_inode = (struct pantryfs_inode *)inode->i_private;
+	root = pantryfs_root_get(inode->i_sb);
+
+	pantry_inode->mode = inode->i_mode;
+	pantry_inode->uid = from_kuid(current_user_ns(), inode->i_uid);
+	pantry_inode->gid = from_kgid(current_user_ns(), inode->i_gid);
+	pantry_inode->i_atime = inode->i_atime;
+	pantry_inode->i_mtime = inode->i_mtime;
+	pantry_inode->i_ctime = inode->i_ctime;
+	pantry_inode->nlink = inode->i_nlink;
+	pantry_inode->file_size = (uint64_t)inode->i_size; // checked
+
+	mark_buffer_dirty(root.buf_heads->i_store_bh);
+
+ret:
+	return e;
 }
 
 #pragma GCC diagnostic push
@@ -415,7 +454,8 @@ ssize_t pantryfs_write(struct file *file, const char __user *buf, size_t len,
 		       loff_t *ppos)
 {
 	// buf cast is safe b/c only accessed as const when write = true
-	return pantryfs_read_or_write(file,(char __user *) buf, len, ppos, /* write */ true);
+	return pantryfs_read_or_write(file, (char __user *)buf, len, ppos,
+				      /* write */ true);
 }
 
 struct dentry *pantryfs_lookup(struct inode *parent,
@@ -516,7 +556,7 @@ int pantryfs_fill_super(struct super_block *sb, void *data __always_unused,
 	}
 
 	sb->s_fs_info = (void *)buf_heads;
-	root = pantryfs_root_new(sb);
+	root = pantryfs_root_get(sb);
 	root_inode = pantryfs_create_inode(&root, PANTRYFS_ROOT_INODE_NUMBER);
 	if (IS_ERR(root_inode)) {
 		e = PTR_ERR(root_inode);
