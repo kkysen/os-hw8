@@ -228,6 +228,80 @@ struct inode *pantryfs_create_inode(const struct pantryfs_root *root,
 	return inode;
 }
 
+ssize_t pantryfs_read_or_write(struct file *file, char __user *buf, size_t len,
+			       loff_t *ppos, bool write)
+{
+	int e;
+	struct inode *inode;
+	size_t size;
+	size_t start;
+	size_t size_remaining;
+	struct pantryfs_reg_file reg_file;
+	char *ptr;
+	unsigned long bytes_left;
+
+	e = 0;
+	start = *ppos;
+	if (*ppos < 0) {
+		e = -EIO;
+		goto ret;
+	}
+	start = (size_t)*ppos;
+	inode = file_inode(file);
+	if (inode->i_size < 0) {
+		e = -EIO;
+		goto ret;
+	}
+	if (write) {
+		size = PFS_BLOCK_SIZE;
+	} else {
+		size = min_t(size_t, inode->i_size, PFS_BLOCK_SIZE);
+	}
+	if (len == 0 || start > size) {
+		len = 0;
+		goto ret;
+	}
+	if (!buf) {
+		e = -EFAULT;
+		goto ret;
+	}
+	// can't underflow b/c checked start > size
+	size_remaining = size - start;
+	// avoid potential overflows
+	len = min_t(size_t, len, size_remaining);
+
+	e = pantryfs_reg_file_check(inode);
+	if (e < 0)
+		goto ret;
+	e = pantryfs_reg_file_get(inode, &reg_file);
+	if (e < 0)
+		goto ret;
+	if (write) {
+		inode->i_mtime = inode->i_atime;
+		reg_file.file.inode->i_mtime = inode->i_mtime;
+	}
+	ptr = &reg_file.data[start];
+	if (write) {
+		bytes_left = copy_from_user(ptr, buf, len);
+	} else {
+		bytes_left = copy_to_user(buf, ptr, len);
+	}
+	if (bytes_left > 0) {
+		e = -EFAULT;
+		goto free_block;
+	}
+	if (write) {
+		mark_buffer_dirty_inode(reg_file.file.block, inode);
+	}
+	*ppos += len;
+free_block:
+	brelse(reg_file.file.block);
+ret:
+	if (e < 0)
+		return (ssize_t) e;
+	return (ssize_t) len;
+}
+
 int pantryfs_iterate(struct file *file, struct dir_context *ctx)
 {
 	static const size_t num_dots = 2; // 2 for `.` and `..`
@@ -290,63 +364,7 @@ ret:
 ssize_t pantryfs_read(struct file *file, char __user *buf, size_t len,
 		      loff_t *ppos)
 {
-	int e;
-	ssize_t bytes_read;
-	struct inode *inode;
-	size_t size;
-	size_t start;
-	size_t size_remaining;
-	size_t end;
-	struct pantryfs_reg_file reg_file;
-
-	e = 0;
-	start = *ppos;
-	if (*ppos < 0) {
-		e = -EINVAL;
-		goto ret;
-	}
-	start = (size_t)*ppos;
-	inode = file_inode(file);
-	if (inode->i_size < 0) {
-		bytes_read = 0;
-		goto ret;
-	}
-	size = (size_t)inode->i_size;
-	size = min_t(size_t, size, PFS_BLOCK_SIZE);
-	if (len == 0 || start > size) {
-		bytes_read = 0;
-		goto ret;
-	}
-	if (!buf) {
-		e = -EFAULT;
-		goto ret;
-	}
-	// can't underflow b/c checked start > size
-	size_remaining = size - start;
-	len = min_t(size_t, len, size_remaining);
-	// avoid potential overflows
-	end = start + len;
-
-	e = pantryfs_reg_file_check(inode);
-	if (e < 0)
-		goto ret;
-	e = pantryfs_reg_file_get(inode, &reg_file);
-	if (e < 0)
-		goto ret;
-	if (copy_to_user(buf, &reg_file.data[start], len) != 0) {
-		e = -EFAULT;
-		goto free_block;
-	}
-	*ppos = (loff_t)end;
-	bytes_read = (ssize_t)len;
-	goto free_block;
-
-free_block:
-	brelse(reg_file.file.block);
-ret:
-	if (e < 0)
-		return (ssize_t)e;
-	return bytes_read;
+	return pantryfs_read_or_write(file, buf, len, ppos, /* write */ false);
 }
 
 loff_t pantryfs_llseek(struct file *file, loff_t offset, int whence)
@@ -368,10 +386,16 @@ int pantryfs_unlink(struct inode *dir, struct dentry *dentry)
 	return -ENOSYS;
 }
 
-int pantryfs_write_inode(struct inode *inode, struct writeback_control *wbc)
+#pragma GCC diagnostic pop // "-Wunused-parameter"
+
+int pantryfs_write_inode(struct inode *inode __always_unused,
+			 struct writeback_control *wbc __always_unused)
 {
 	return -ENOSYS;
 }
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-parameter"
 
 void pantryfs_evict_inode(struct inode *inode)
 {
@@ -385,13 +409,14 @@ int pantryfs_fsync(struct file *file, loff_t start, loff_t end, int datasync)
 	return -ENOSYS;
 }
 
+#pragma GCC diagnostic pop // "-Wunused-parameter"
+
 ssize_t pantryfs_write(struct file *file, const char __user *buf, size_t len,
 		       loff_t *ppos)
 {
-	return -ENOSYS;
+	// buf cast is safe b/c only accessed as const when write = true
+	return pantryfs_read_or_write(file,(char __user *) buf, len, ppos, /* write */ true);
 }
-
-#pragma GCC diagnostic pop // "-Wunused-parameter"
 
 struct dentry *pantryfs_lookup(struct inode *parent,
 			       struct dentry *child_dentry,
