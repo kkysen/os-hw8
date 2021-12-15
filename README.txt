@@ -119,6 +119,9 @@ We also checked carefully to avoid overflows,
 especially because `len` is from the user and it's mixed with `loff_t`s,
 and signed integer overflow is UB.
 
+Like in part 3, we also update the access time when reading a file,
+though again, we don't flush the new time to disk.
+
 
 ### Part 6
 TODO

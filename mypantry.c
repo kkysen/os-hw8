@@ -38,7 +38,7 @@ static const char *file_type_name(mode_t mode)
 	}
 }
 
-int pantryfs_check_file(const struct inode *inode, bool is_dir)
+int pantryfs_file_check(const struct inode *inode, bool is_dir)
 {
 	mode_t mode;
 
@@ -60,6 +60,16 @@ int pantryfs_check_file(const struct inode *inode, bool is_dir)
 			return -EISDIR;
 	}
 	return 0;
+}
+
+int pantryfs_dir_check(const struct inode *inode)
+{
+	return pantryfs_file_check(inode, /* is_dir */ true);
+}
+
+int pantryfs_reg_file_check(const struct inode *inode)
+{
+	return pantryfs_file_check(inode, /* is_dir */ false);
 }
 
 struct pantryfs_root {
@@ -90,27 +100,18 @@ struct pantryfs_file {
 	struct buffer_head *block;
 };
 
-int pantryfs_file_get(struct inode *inode, struct pantryfs_file *file,
-		      bool is_dir)
+int pantryfs_file_get(struct inode *inode, struct pantryfs_file *file)
 {
-	int e;
-
-	e = 0;
-	e = pantryfs_check_file(inode, is_dir);
-	if (e < 0)
-		goto ret;
 	file->vfs_inode = inode;
 	file->inode = (struct pantryfs_inode *)file->vfs_inode->i_private;
 	file->root = pantryfs_root_new(file->vfs_inode->i_sb);
 	file->block =
 		sb_bread(file->root.vfs_sb, file->inode->data_block_number);
-	if (!file->block) {
-		e = -ENOMEM;
-		goto ret;
-	}
-
-ret:
-	return e;
+	if (!file->block)
+		return -ENOMEM;
+	ktime_get_real_ts64(&file->vfs_inode->i_atime);
+	file->inode->i_atime = file->vfs_inode->i_atime;
+	return 0;
 }
 
 struct pantryfs_dir {
@@ -123,7 +124,7 @@ int pantryfs_dir_get(struct inode *inode, struct pantryfs_dir *dir)
 	int e;
 
 	e = 0;
-	e = pantryfs_file_get(inode, &dir->file, /* is_dir */ true);
+	e = pantryfs_file_get(inode, &dir->file);
 	if (e < 0)
 		goto ret;
 	dir->dentries = (struct pantryfs_dir_entry *)dir->file.block->b_data;
@@ -142,7 +143,7 @@ int pantryfs_reg_file_get(struct inode *inode, struct pantryfs_reg_file *file)
 	int e;
 
 	e = 0;
-	e = pantryfs_file_get(inode, &file->file, /* is_dir */ false);
+	e = pantryfs_file_get(inode, &file->file);
 	if (e < 0)
 		goto ret;
 	file->data = file->file.block->b_data;
@@ -230,11 +231,13 @@ int pantryfs_iterate(struct file *file, struct dir_context *ctx)
 {
 	static const size_t num_dots = 2; // 2 for `.` and `..`
 	int e;
+	struct inode *inode;
 	struct pantryfs_dir dir;
 	size_t i;
 
 	e = 0;
-	e = pantryfs_dir_get(file_inode(file), &dir);
+	inode = file_inode(file);
+	e = pantryfs_dir_check(inode);
 	if (e < 0)
 		goto ret;
 	if (ctx->pos < 0 || (size_t)ctx->pos >= PFS_MAX_CHILDREN + num_dots) {
@@ -248,8 +251,9 @@ int pantryfs_iterate(struct file *file, struct dir_context *ctx)
 		// no space, try again next time
 		goto ret;
 	}
-	ktime_get_real_ts64(&dir.file.vfs_inode->i_atime);
-	dir.file.inode->i_atime = dir.file.vfs_inode->i_atime;
+	e = pantryfs_dir_get(inode, &dir);
+	if (e < 0)
+		goto ret;
 	for (i = (size_t)ctx->pos - num_dots; i < PFS_MAX_CHILDREN; i++) {
 		const struct pantryfs_dir_entry *dentry;
 		const struct pantryfs_inode *dentry_inode;
@@ -307,7 +311,7 @@ ssize_t pantryfs_read(struct file *file, char __user *buf, size_t len,
 		goto ret;
 	}
 	size = (size_t)inode->i_size;
-	size = min(size, (size_t)PFS_BLOCK_SIZE);
+	size = min_t(size_t, size, PFS_BLOCK_SIZE);
 	if (len == 0 || start > size) {
 		bytes_read = 0;
 		goto ret;
@@ -322,6 +326,9 @@ ssize_t pantryfs_read(struct file *file, char __user *buf, size_t len,
 	// avoid potential overflows
 	end = start + len;
 
+	e = pantryfs_reg_file_check(inode);
+	if (e < 0)
+		goto ret;
 	e = pantryfs_reg_file_get(inode, &reg_file);
 	if (e < 0)
 		goto ret;
@@ -399,6 +406,9 @@ struct dentry *pantryfs_lookup(struct inode *parent,
 		e = -ENAMETOOLONG;
 		goto ret;
 	}
+	e = pantryfs_dir_check(parent);
+	if (e < 0)
+		goto ret;
 	e = pantryfs_dir_get(parent, &dir);
 	if (e < 0)
 		goto ret;

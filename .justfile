@@ -828,6 +828,7 @@ explore-a-pantry mod_path func: (make "format_disk_as_pantryfs")
         stat ..
         strace -etrace=read cat names.txt
         cat names.txt
+        stat names.txt
         cd ..
         strace -etrace=read dd if=hello.txt bs=1 skip=6
         dd if=hello.txt bs=1 skip=6
