@@ -131,6 +131,16 @@ so this part was pretty simple.
 We just fixed some small things (like setting the 512-byte block count).
 We mainly just added more testing for this part.
 
+Note that for the block count, we use 512-byte blocks,
+since this is what the documentation for `stat(2)` says to do,
+and this is what is done by other filesystems like ext4.
+
+We also override the size of a directory to always be `PFS_BLOCK_SIZE`.
+This is what the reference implementation seems to do,
+and is what Tal said we should do.
+By default, the pantryfs disk formatter sets the size of 0 for directories,
+which is why the correction is needed.
+
 
 ### Part 7
 TODO
