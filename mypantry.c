@@ -252,8 +252,10 @@ ssize_t pantryfs_read_or_write(struct file *file, char __user *buf, size_t len,
 	int e;
 	struct inode *inode;
 	size_t size;
+	size_t max_size;
 	size_t start;
 	size_t size_remaining;
+	size_t end;
 	struct pantryfs_reg_file reg_file;
 	char *ptr;
 	unsigned long bytes_left;
@@ -270,11 +272,12 @@ ssize_t pantryfs_read_or_write(struct file *file, char __user *buf, size_t len,
 		e = -EIO;
 		goto ret;
 	}
+	size = (size_t) inode->i_size;
 	if (write)
-		size = PFS_BLOCK_SIZE;
+		max_size = PFS_BLOCK_SIZE;
 	else
-		size = min_t(size_t, inode->i_size, PFS_BLOCK_SIZE);
-	if (len == 0 || start > size) {
+		max_size = min_t(size_t, size, PFS_BLOCK_SIZE);
+	if (len == 0 || start > max_size) {
 		len = 0;
 		goto ret;
 	}
@@ -283,7 +286,7 @@ ssize_t pantryfs_read_or_write(struct file *file, char __user *buf, size_t len,
 		goto ret;
 	}
 	// can't underflow b/c checked start > size
-	size_remaining = size - start;
+	size_remaining = max_size - start;
 	// avoid potential overflows
 	len = min_t(size_t, len, size_remaining);
 
@@ -293,10 +296,6 @@ ssize_t pantryfs_read_or_write(struct file *file, char __user *buf, size_t len,
 	e = pantryfs_reg_file_get(inode, &reg_file);
 	if (e < 0)
 		goto ret;
-	if (write) {
-		inode->i_mtime = inode->i_atime;
-		reg_file.file.inode->i_mtime = inode->i_mtime;
-	}
 	ptr = &reg_file.data[start];
 	if (write)
 		bytes_left = copy_from_user(ptr, buf, len);
@@ -306,9 +305,15 @@ ssize_t pantryfs_read_or_write(struct file *file, char __user *buf, size_t len,
 		e = -EFAULT;
 		goto free_block;
 	}
-	if (write)
+	end = start + len;
+	if (write) {
+		if (end > size)
+			inode->i_size = (loff_t) end;
+		inode->i_mtime = inode->i_atime;
+		reg_file.file.inode->i_mtime = inode->i_mtime;
 		mark_buffer_dirty_inode(reg_file.file.block, inode);
-	*ppos += len;
+	}
+	*ppos = (loff_t) end;
 free_block:
 	brelse(reg_file.file.block);
 ret:
