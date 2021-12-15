@@ -223,6 +223,7 @@ struct inode *pantryfs_create_inode(const struct pantryfs_root *root,
 	// file size <= PFS_BLOCK_SIZE = 4096
 	// so we can safely cast this to signed
 	inode->i_size = (loff_t)pantry_inode->file_size;
+	inode->i_blocks = PFS_BLOCK_SIZE / 512 + (PFS_BLOCK_SIZE % 512 != 0);
 	unlock_new_inode(inode);
 	return inode;
 }
