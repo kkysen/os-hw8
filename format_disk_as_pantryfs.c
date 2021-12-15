@@ -130,6 +130,9 @@ void format_disk(const char *disk_image_path, const struct file_args *files)
 	close(fd);
 }
 
+#define _str(x) #x
+#define str(x) _str(x)
+
 int main(int argc, char *argv[])
 {
 	if (argc != 2) {
@@ -142,14 +145,14 @@ int main(int argc, char *argv[])
 			.dir = {.dentries = {
 				{.filename = "hello.txt", .index = 1},
 				{.filename = "members", .index = 2},
-				{.filename = "3", .index = 3},
-				{.filename = "4", .index = 4},
-				{.filename = "5", .index = 5},
-				{.filename = "6", .index = 6},
-				{.filename = "7", .index = 7},
-				{.filename = "8", .index = 8},
-				{.filename = "9", .index = 9},
-				{.filename = "a", .index = 10},
+				{.filename = "3", .index = 4},
+				{.filename = "4", .index = 5},
+				{.filename = "5", .index = 6},
+				{.filename = "6", .index = 7},
+				{.filename = "7", .index = 8},
+				{.filename = "8", .index = 9},
+				{.filename = "9", .index = 10},
+				{.filename = "a", .index = 11},
 				{0},
 			}},
 		},
@@ -178,9 +181,15 @@ int main(int argc, char *argv[])
 		{
 			.mode = S_IFDIR,
 			.dir = {.dentries = {
+				{.filename = "file", .index = 12},
+				{.filename = "line", .index = 13},
+				{.filename = "func", .index = 14},
 				{0},
 			}},
 		},
+		{.mode = S_IFREG, .file = {.data = __FILE__}},
+		{.mode = S_IFREG, .file = {.data = str(__LINE__)}},
+		{.mode = S_IFREG, .file = {.data = __func__}},
 		{0},
 	};
 	format_disk(argv[1], files);

@@ -796,7 +796,7 @@ explore-a-pantry mod_path func: (make "format_disk_as_pantryfs")
     ll="/bin/ls -alF --inode"
 
     init() {
-        dd bs=4096 count=200 if=/dev/zero of="${img}"
+        dd bs=4096 count=200 if=/dev/urandom of="${img}"
         device="$(sudo losetup --find --show "${img}")"
         sudo ./format_disk_as_pantryfs "${device}"
         just load-mod "${mod_name}" "${mod_path}"
@@ -832,8 +832,14 @@ explore-a-pantry mod_path func: (make "format_disk_as_pantryfs")
         cd ..
         strace -etrace=read dd if=hello.txt bs=1 skip=6
         dd if=hello.txt bs=1 skip=6
-        # ${ll} --recursive
-        # bat $(fd --type file)
+        /bin/ls -alF --inode --recursive
+        bat --paging never $(fd --type file)
+        cp -r . ~/pantry/
+        cd ~/pantry
+        /bin/ls -alF --inode --recursive
+        bat --paging never $(fd --type file)
+        cd ~-
+        rm -rf ~/pantry/
     }
 
     all() {
@@ -858,3 +864,5 @@ test-part3: explore-mypantry
 test-part4: explore-mypantry
 
 test-part5: explore-mypantry
+
+test-part6: explore-mypantry
