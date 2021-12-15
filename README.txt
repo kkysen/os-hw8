@@ -91,6 +91,11 @@ If it is, we skip that dentry and return `EIO`.
 This way we avoid invalid reads if the disk image
 is corrupted/ill-formatted.
 
+We also update the access time since ext4 appears to do this,
+at least without `noatime` (it's defaulting to `relatime`).
+However, since we haven't implemented `pantryfs_write_inode` yet,
+this atime never gets written back to disk.
+
 
 ### Part 4
 TODO

@@ -20,8 +20,8 @@ int pantryfs_iterate(struct file *filp, struct dir_context *ctx)
 {
 	static const size_t num_dots = 2; // 2 for `.` and `..`
 	int e;
-	const struct inode *vfs_inode;
-	const struct pantryfs_inode *inode;
+	struct inode *vfs_inode;
+	struct pantryfs_inode *inode;
 	const struct pantryfs_sb_buffer_heads *buf_heads;
 	const struct pantryfs_super_block *sb;
 	const struct pantryfs_inode *inodes;
@@ -33,17 +33,6 @@ int pantryfs_iterate(struct file *filp, struct dir_context *ctx)
 	const struct pantryfs_inode *dentry_inode;
 
 	e = 0;
-	if (ctx->pos < 0 || (size_t)ctx->pos >= PFS_MAX_CHILDREN + num_dots) {
-		// quick check before running/allocating/reading anything
-		// negative pos is wrong
-		// don't want to segfault or overflow,
-		// so return nothing in that case
-		goto ret;
-	}
-	if (!dir_emit_dots(filp, ctx)) {
-		// no space, try again next time
-		goto ret;
-	}
 	vfs_inode = file_inode(filp);
 	if (!S_ISDIR(vfs_inode->i_mode)) {
 		e = -ENOTDIR;
@@ -53,7 +42,20 @@ int pantryfs_iterate(struct file *filp, struct dir_context *ctx)
 		e = -EIO;
 		goto ret;
 	}
-	inode = (const struct pantryfs_inode *)vfs_inode->i_private;
+	if (ctx->pos < 0 || (size_t)ctx->pos >= PFS_MAX_CHILDREN + num_dots) {
+		// quick check before running/allocating/reading anything
+		// negative pos is wrong
+		// don't want to segfault or overflow,
+		// so return nothing in that case
+		goto ret;
+	}
+	ktime_get_real_ts64(&vfs_inode->i_atime);
+	if (!dir_emit_dots(filp, ctx)) {
+		// no space, try again next time
+		goto ret;
+	}
+	inode = (struct pantryfs_inode *)vfs_inode->i_private;
+	inode->i_atime = vfs_inode->i_atime;
 	buf_heads = (const struct pantryfs_sb_buffer_heads *)
 			    vfs_inode->i_sb->s_fs_info;
 	sb = (const struct pantryfs_super_block *)buf_heads->sb_bh->b_data;
