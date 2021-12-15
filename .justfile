@@ -793,7 +793,7 @@ explore-a-pantry mod_path func: (make "format_disk_as_pantryfs")
     mnt="/mnt/pantry"
     mod_path="{{mod_path}}"
     mod_name="$(just mod-name "${mod_path}")"
-    ll="/bin/ls -alF --inode"
+    alias ls="/bin/ls"
 
     init() {
         dd bs=4096 count=200 if=/dev/urandom of="${img}"
@@ -814,32 +814,46 @@ explore-a-pantry mod_path func: (make "format_disk_as_pantryfs")
 
     explore() {
         cd "${mnt}"
-        strace -etrace=file,getdents64 /bin/ls -a .
+
+        strace -etrace=file,getdents64 ls -a .
         stat .
-        /bin/ls .
-        /bin/ls -a .
-        /bin/ls members
+        ls .
+        ls -a .
+        ls members
         stat .
         stat *
         cd members
-        /bin/ls -a .
+        ls -a .
         stat does_not_exist.txt
         stat names.txt
         stat ..
+
         strace -etrace=read cat names.txt
         cat names.txt
         stat names.txt
         cd ..
         strace -etrace=read dd if=hello.txt bs=1 skip=6
         dd if=hello.txt bs=1 skip=6
-        /bin/ls -alF --inode --recursive
+
+        ls -alF --inode --recursive
         bat --paging never $(fd --type file)
         cp -r . ~/pantry/
         cd ~/pantry
-        /bin/ls -alF --inode --recursive
+        ls -alF --inode --recursive
         bat --paging never $(fd --type file)
         cd ~-
         rm -rf ~/pantry/
+
+        echo -ne "4118" | dd of=hello.txt bs=1 seek=7 conv=notrunc
+        cat hello.txt
+        echo "Greetings and salutations, w4118!" | dd of=hello.txt conv=notrunc
+        cat hello.txt
+        echo "Greetings and salutations, w4118!" > hello.txt
+        cat hello.txt
+        ls -l hello.txt
+        echo "Hi w4118!" > hello.txt
+        cat hello.txt
+        ls -l hello.txt
     }
 
     all() {
@@ -866,3 +880,5 @@ test-part4: explore-mypantry
 test-part5: explore-mypantry
 
 test-part6: explore-mypantry
+
+test-part7: explore-mypantry
