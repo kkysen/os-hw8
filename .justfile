@@ -825,6 +825,11 @@ explore-a-pantry mod_path func: (make "format_disk_as_pantryfs")
         stat does_not_exist.txt
         stat names.txt
         stat ..
+        strace -etrace=read cat names.txt
+        cat names.txt
+        cd ..
+        strace -etrace=read dd if=hello.txt bs=1 skip=6
+        dd if=hello.txt bs=1 skip=6
         # ${ll} --recursive
         # bat $(fd --type file)
     }
@@ -849,3 +854,5 @@ test-part2: explore-mypantry
 test-part3: explore-mypantry
 
 test-part4: explore-mypantry
+
+test-part5: explore-mypantry
