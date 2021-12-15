@@ -122,8 +122,8 @@ int pantryfs_file_get(struct inode *inode, struct pantryfs_file *file)
 		sb_bread(file->root.vfs_sb, file->inode->data_block_number);
 	if (!file->block)
 		return -ENOMEM;
-	ktime_get_real_ts64(&inode->i_atime);
-	file->inode->i_atime = inode->i_atime;
+	// don't mark inode dirty, like in relatime
+	inode->i_atime = current_time(inode);
 	return 0;
 }
 
@@ -228,8 +228,8 @@ struct inode *pantryfs_create_inode(const struct pantryfs_root *root,
 	inode->i_fop = is_dir ? &pantryfs_dir_ops : &pantryfs_file_ops;
 	inode->i_private = (void *)pantry_inode;
 	inode->i_mode = pantry_inode->mode;
-	inode->i_uid = make_kuid(current_user_ns(), pantry_inode->uid);
-	inode->i_gid = make_kgid(current_user_ns(), pantry_inode->gid);
+	i_uid_write(inode, pantry_inode->uid);
+	i_gid_write(inode, pantry_inode->gid);
 	inode->i_atime = pantry_inode->i_atime;
 	inode->i_mtime = pantry_inode->i_mtime;
 	inode->i_ctime = pantry_inode->i_ctime;
@@ -310,7 +310,7 @@ ssize_t pantryfs_read_or_write(struct file *file, char __user *buf, size_t len,
 		if (end > size)
 			inode->i_size = (loff_t) end;
 		inode->i_mtime = inode->i_atime;
-		reg_file.file.inode->i_mtime = inode->i_mtime;
+		mark_inode_dirty(inode);
 		mark_buffer_dirty_inode(reg_file.file.block, inode);
 	}
 	*ppos = (loff_t) end;
@@ -429,8 +429,8 @@ int pantryfs_write_inode(struct inode *mut_inode,
 	root = pantryfs_root_get(inode->i_sb);
 
 	pantry_inode->mode = inode->i_mode;
-	pantry_inode->uid = from_kuid(current_user_ns(), inode->i_uid);
-	pantry_inode->gid = from_kgid(current_user_ns(), inode->i_gid);
+	pantry_inode->uid = i_uid_read(inode);
+	pantry_inode->gid = i_gid_read(inode);
 	pantry_inode->i_atime = inode->i_atime;
 	pantry_inode->i_mtime = inode->i_mtime;
 	pantry_inode->i_ctime = inode->i_ctime;
