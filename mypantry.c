@@ -43,7 +43,7 @@ int pantryfs_check_dir(const struct inode *inode)
 	if (!S_ISDIR(inode->i_mode))
 		return -ENOTDIR;
 	if (inode->i_fop != &pantryfs_dir_ops)
-		return -EINVAL;
+		return -EIO;
 	return 0;
 }
 
