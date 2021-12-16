@@ -89,7 +89,7 @@ int pantryfs_reg_file_check(const struct inode *inode)
 struct pantryfs_root {
 	struct super_block *vfs_sb;
 	const struct pantryfs_sb_buffer_heads *buf_heads;
-	const struct pantryfs_super_block *sb;
+	struct pantryfs_super_block *sb;
 	struct pantryfs_inode *inodes;
 };
 
@@ -100,8 +100,7 @@ struct pantryfs_root pantryfs_root_get(struct super_block *sb)
 	return (struct pantryfs_root){
 		.vfs_sb = sb,
 		.buf_heads = buf_heads,
-		.sb = (const struct pantryfs_super_block *)
-			      buf_heads->sb_bh->b_data,
+		.sb = (struct pantryfs_super_block *)buf_heads->sb_bh->b_data,
 		.inodes =
 			(struct pantryfs_inode *)buf_heads->i_store_bh->b_data,
 	};
@@ -325,6 +324,154 @@ ret:
 	return (ssize_t)len;
 }
 
+struct inode *pantryfs_create_new_inode(struct pantryfs_dir *dir,
+					struct qstr name, umode_t mode)
+{
+	int e;
+	struct pantryfs_super_block *sb;
+	size_t inode_index;
+	size_t data_block_index;
+	size_t dentry_index;
+	uint64_t ino;
+	bool is_dir;
+	struct pantryfs_dir_entry *pantry_dentry;
+	struct pantryfs_inode *pantry_inode;
+	struct inode *inode;
+
+	e = 0;
+	if (!S_ISREG(mode)) {
+		e = -ENOSYS;
+		goto ret;
+	}
+	sb = dir->file.root.sb;
+
+#define find_index(i, n, check)                                                \
+	do {                                                                   \
+		for (i = 0; i < (n); i++) {                                    \
+			if ((check))                                           \
+				break;                                         \
+		}                                                              \
+		if (i >= (n)) {                                                \
+			e = -ENOSPC;                                           \
+		}                                                              \
+	} while (false)
+
+	find_index(inode_index, PFS_MAX_INODES,
+		   !IS_SET(sb->free_inodes, inode_index));
+	if (e < 0)
+		goto ret;
+	find_index(data_block_index, PFS_MAX_INODES,
+		   !IS_SET(sb->free_data_blocks, data_block_index));
+	if (e < 0)
+		goto ret;
+	find_index(dentry_index, PFS_MAX_INODES,
+		   !dir->dentries[dentry_index].active);
+	if (e < 0)
+		goto ret;
+
+#undef find_index
+
+	ino = inode_index + 1;
+	inode = iget_locked(dir->file.root.vfs_sb, ino);
+	if (!inode) {
+		e = -ENOMEM;
+		goto ret;
+	}
+
+	pantry_dentry = &dir->dentries[dentry_index];
+	pantry_inode = &dir->file.root.inodes[inode_index];
+	SETBIT(sb->free_inodes, inode_index);
+	SETBIT(sb->free_data_blocks, data_block_index);
+	pantry_dentry->active = true;
+	pantry_dentry->inode_no = ino;
+	memcpy(pantry_dentry->filename, name.name, name.len);
+	pantry_dentry->filename[name.len] = 0;
+
+	is_dir = S_ISDIR(mode);
+	inode->i_sb = dir->file.root.vfs_sb;
+	inode->i_op = &pantryfs_inode_ops;
+	inode->i_fop = is_dir ? &pantryfs_dir_ops : &pantryfs_file_ops;
+	inode->i_private = (void *)pantry_inode;
+	inode->i_mode = mode;
+	inode->i_uid = current_cred()->uid;
+	inode->i_gid = current_cred()->gid;
+	inode->i_atime = current_time(inode);
+	inode->i_mtime = inode->i_atime;
+	inode->i_ctime = inode->i_atime;
+	set_nlink(inode, 1);
+	if (is_dir)
+		inode->i_size = PFS_BLOCK_SIZE;
+	else
+		inode->i_size = 0;
+	inode->i_blocks = PFS_BLOCK_SIZE / 512 + (PFS_BLOCK_SIZE % 512 != 0);
+	unlock_new_inode(inode);
+
+ret:
+	if (e < 0)
+		return ERR_PTR(e);
+	return inode;
+}
+
+int pantryfs_lookup_or_create(struct inode *parent, struct dentry *child_dentry,
+			      bool create, umode_t mode, bool excl)
+{
+	int e;
+	struct pantryfs_dir dir;
+	size_t i;
+	struct inode *inode;
+
+	e = 0;
+	if (child_dentry->d_name.len > PANTRYFS_MAX_FILENAME_LENGTH) {
+		e = -ENAMETOOLONG;
+		goto ret;
+	}
+	e = pantryfs_dir_check(parent);
+	if (e < 0)
+		goto ret;
+	e = pantryfs_dir_get(parent, &dir);
+	if (e < 0)
+		goto ret;
+	inode = NULL;
+	for (i = 0; i < PFS_MAX_CHILDREN; i++) {
+		const struct pantryfs_dir_entry *dentry;
+
+		dentry = &dir.dentries[i];
+		if (pantryfs_dentry_eq_name(child_dentry, dentry)) {
+			inode = pantryfs_create_inode(&dir.file.root,
+						      dentry->inode_no);
+			break;
+		}
+	}
+	if (IS_ERR(inode)) {
+		e = PTR_ERR(inode);
+		goto free_block;
+	}
+	if (create) {
+		if (excl && inode) {
+			e = -EEXIST;
+			goto free_block;
+		}
+		if (!inode) {
+			inode = pantryfs_create_new_inode(
+				&dir, child_dentry->d_name, mode);
+			WARN_ON(!inode);
+			if (IS_ERR(inode)) {
+				e = PTR_ERR(inode);
+				goto free_block;
+			}
+		}
+	}
+	d_add(child_dentry, inode);
+	if (!create)
+		dget(child_dentry);
+	goto free_block;
+
+free_block:
+	brelse(dir.file.block);
+ret:
+	return e;
+}
+
 int pantryfs_iterate(struct file *file, struct dir_context *ctx)
 {
 	static const size_t num_dots = 2; // 2 for `.` and `..`
@@ -395,14 +542,15 @@ loff_t pantryfs_llseek(struct file *file, loff_t offset, int whence)
 	return generic_file_llseek(file, offset, whence);
 }
 
+int pantryfs_create(struct inode *parent, struct dentry *child_dentry,
+		    umode_t mode, bool excl)
+{
+	return pantryfs_lookup_or_create(parent, child_dentry,
+					 /* create */ true, mode, excl);
+}
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
-
-int pantryfs_create(struct inode *parent, struct dentry *dentry, umode_t mode,
-		    bool excl)
-{
-	return -ENOSYS;
-}
 
 int pantryfs_unlink(struct inode *dir, struct dentry *dentry)
 {
@@ -474,43 +622,10 @@ struct dentry *pantryfs_lookup(struct inode *parent,
 			       unsigned int flags __always_unused)
 {
 	int e;
-	struct pantryfs_dir dir;
-	size_t i;
-	struct inode *inode;
 
-	e = 0;
-	if (child_dentry->d_name.len > PANTRYFS_MAX_FILENAME_LENGTH) {
-		e = -ENAMETOOLONG;
-		goto ret;
-	}
-	e = pantryfs_dir_check(parent);
-	if (e < 0)
-		goto ret;
-	e = pantryfs_dir_get(parent, &dir);
-	if (e < 0)
-		goto ret;
-	inode = NULL;
-	for (i = 0; i < PFS_MAX_CHILDREN; i++) {
-		const struct pantryfs_dir_entry *dentry;
-
-		dentry = &dir.dentries[i];
-		if (pantryfs_dentry_eq_name(child_dentry, dentry)) {
-			inode = pantryfs_create_inode(&dir.file.root,
-						      dentry->inode_no);
-			break;
-		}
-	}
-	if (IS_ERR(inode)) {
-		e = PTR_ERR(inode);
-		goto free_block;
-	}
-	d_add(child_dentry, inode);
-	dget(child_dentry);
-	goto free_block;
-
-free_block:
-	brelse(dir.file.block);
-ret:
+	e = pantryfs_lookup_or_create(parent, child_dentry,
+				      /* create */ false, /* mode */ 0,
+				      /* excl */ false);
 	if (e < 0)
 		return ERR_PTR(e);
 	return child_dentry;
