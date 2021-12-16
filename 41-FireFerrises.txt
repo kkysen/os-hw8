@@ -1,0 +1,343 @@
+[36m################### [35m(41-FireFerrises)[36m Pantry p0 ###################[39m
+[36m### Checking out hw8p9handin tag ###
+(B[m[36m
+### [A2] Check for binaries/artifacts ###
+(B[m[01;34m.[00m
+├── .clang-format
+├── format_disk_as_pantryfs.c
+├── .gitignore
+├── .justfile
+├── Makefile
+├── mypantry.c
+├── pantryfs_file.h
+├── pantryfs_file_ops.h
+├── pantryfs_inode.h
+├── pantryfs_inode_ops.h
+├── pantryfs_sb.h
+├── pantryfs_sb_ops.h
+├── README.txt
+├── [01;34mref[00m
+│   ├── pantry-arm.ko
+│   └── pantry-x86.ko
+├── [01;32mrun_checkpatch.sh[00m
+└── [01;34mutil[00m
+    ├── [01;32mcheckpatch.pl[00m
+    ├── const_structs.checkpatch
+    └── spelling.txt
+
+2 directories, 19 files
+Apply? [y/n]: 
+[A2]: n
+[36m
+### [A3] Checkpatch ###
+(B[mtotal: 0 errors, 0 warnings, 2864 lines checked
+
+Your patch has no obvious style problems and is ready for submission.
+
+NOTE: Ignored message types: AVOID_EXTERNS ENOSYS EXPORT_SYMBOL FILE_PATH_CHANGES LINE_CONTINUATIONS MISSING_EOF_NEWLINE SPDX_LICENSE_TAG TRAILING_SEMICOLON
+Apply? [y/n]: 
+[A3]: n
+[36m### Cleaning up ###
+(B[mPrevious HEAD position was 91079d7 Updated readme.
+Switched to branch 'master'
+Your branch is up to date with 'origin/master'.
+[36m################### [35m(41-FireFerrises)[36m Pantry p0 ###################[39m
+[36m################### [35m(41-FireFerrises)[36m Pantry p1 ###################[39m
+[36m### Checking out hw8p1handin tag ###
+(B[mrmmod: ERROR: Module pantry is not currently loaded
+rmmod: ERROR: Module mypantry is not currently loaded
+rmmod: ERROR: Module mypantryfs is not currently loaded
+INFO:root:********** Testing Part 1 [B] **********
+INFO:root:[B1,PASS] +  3 | members directory was created
+INFO:root:[B2,PASS] +  3 | members directory has nlink 2
+INFO:root:[B3,PASS] +  4 | names.txt created with nlink 1
+INFO:root:[B4,PASS] +  4 | names.txt has text with no garbage bytes
+INFO:root:[B5,PASS] +  6 | root directory has nlink 3
+INFO:root:[B] Total: = 20
+INFO:root:Part1 probably ran cleanly (check dmesg too)
+INFO:root:*** DMESG: NONE ***
+INFO:root:******************END******************
+[Dec16 15:25] pantryfs superblock destroyed. Unmount successful.
+[  +0.040009] Successfully unregistered pantryfs
+[  +0.022862] Successfully registered mypantryfs
+
+[36m### Cleaning up ###
+(B[mPrevious HEAD position was eed6099 Simplified things a bit more.
+Switched to branch 'master'
+Your branch is up to date with 'origin/master'.
+[36m################### [35m(41-FireFerrises)[36m Pantry p1 ###################[39m
+[36m################### [35m(41-FireFerrises)[36m Pantry p2 ###################[39m
+[36m### Checking out hw8p2handin tag ###
+(B[mrmmod: ERROR: Module pantry is not currently loaded
+rmmod: ERROR: Module mypantryfs is not currently loaded
+INFO:root:********** Testing Part 2 [C] **********
+INFO:root:[C1,PASS] + 30 | Mount returned exit code 0
+INFO:root:[C] Total: = 30
+INFO:root:Part2 probably ran cleanly (check dmesg too)
+INFO:root:*** DMESG: NONE ***
+INFO:root:******************END******************
+[Dec16 15:25] mypantryfs superblock destroyed. Unmount successful.
+
+[36m### Cleaning up ###
+(B[mPrevious HEAD position was 86541cd Return `EINVAL` instead of `EMEDIUMTYPE` if magic is wrong. ext2 does that.
+Switched to branch 'master'
+Your branch is up to date with 'origin/master'.
+[36m################### [35m(41-FireFerrises)[36m Pantry p2 ###################[39m
+[36m################### [35m(41-FireFerrises)[36m Pantry p3 ###################[39m
+[36m### Checking out hw8p3handin tag ###
+(B[mrmmod: ERROR: Module pantry is not currently loaded
+rmmod: ERROR: Module mypantryfs is not currently loaded
+INFO:root:********** Testing Part 3 [D] **********
+INFO:root:[D1,PASS] + 30 | Directory listing shows 'hello.txt' and 'members'
+INFO:root:[D2,PASS] + 10 | Directory listing has '.' and '..'
+INFO:root:[D] Total: = 40
+INFO:root:Part3 probably ran cleanly (check dmesg too)
+INFO:root:*** DMESG: NONE ***
+INFO:root:******************END******************
+[Dec16 15:25] mypantryfs superblock destroyed. Unmount successful.
+
+[36m### Cleaning up ###
+(B[mPrevious HEAD position was 7adb19f Added atime updating in `pantryfs_iterate`, since ext4 does this, too.  However, the new time is never written to disk.
+Switched to branch 'master'
+Your branch is up to date with 'origin/master'.
+[36m################### [35m(41-FireFerrises)[36m Pantry p3 ###################[39m
+[36m################### [35m(41-FireFerrises)[36m Pantry p4 ###################[39m
+[36m### Checking out hw8p4handin tag ###
+(B[mrmmod: ERROR: Module pantry is not currently loaded
+rmmod: ERROR: Module mypantryfs is not currently loaded
+INFO:root:********** Testing Part 4 [E] **********
+INFO:root:[E1,PASS] +  8 | 'names.txt' found in 'members' directory
+INFO:root:[E2,PASS] +  3 | stat executed successfully
+INFO:root:[E3,PASS] +  3 | stat fails for nonexistent file
+INFO:root:[E4,PASS] +  3 | chdir to 'members' works
+INFO:root:[E5,PASS] +  3 | umount correctly fails when cwd is 'members'
+INFO:root:[E] Total: = 20
+INFO:root:Part4 probably ran cleanly (check dmesg too)
+INFO:root:*** DMESG: NONE ***
+INFO:root:******************END******************
+[Dec16 15:25] mypantryfs superblock destroyed. Unmount successful.
+
+[36m### Cleaning up ###
+(B[mPrevious HEAD position was f247d0e Added atime updating in `pantryfs_iterate`, since ext4 does this, too.  However, the new time is never written to disk.
+Switched to branch 'master'
+Your branch is up to date with 'origin/master'.
+[36m################### [35m(41-FireFerrises)[36m Pantry p4 ###################[39m
+[36m################### [35m(41-FireFerrises)[36m Pantry p5 ###################[39m
+[36m### Checking out hw8p5handin tag ###
+(B[mrmmod: ERROR: Module pantry is not currently loaded
+rmmod: ERROR: Module mypantryfs is not currently loaded
+INFO:root:********** Testing Part 5 [F] **********
+INFO:root:[F1,PASS] +  3 | Contents of 'hello.txt' are correct
+INFO:root:[F2,PASS] +  3 | names.txt opened successfully
+INFO:root:[F3,PASS] +  2 | Contents of 'names.txt' extracted correctly in multiple reads
+INFO:root:[F4,PASS] +  2 | umount correctly fails when there are open files
+INFO:root:[F] Total: = 10
+INFO:root:Part5 probably ran cleanly (check dmesg too)
+INFO:root:*** DMESG: NONE ***
+INFO:root:******************END******************
+[Dec16 15:25] mypantryfs superblock destroyed. Unmount successful.
+
+[36m### Cleaning up ###
+(B[mPrevious HEAD position was c7ab05a Added atime update to `pantryfs_read`, too.
+Switched to branch 'master'
+Your branch is up to date with 'origin/master'.
+[36m################### [35m(41-FireFerrises)[36m Pantry p5 ###################[39m
+[36m################### [35m(41-FireFerrises)[36m Pantry p6 ###################[39m
+[36m### Checking out hw8p6handin tag ###
+(B[mrmmod: ERROR: Module pantry is not currently loaded
+rmmod: ERROR: Module mypantryfs is not currently loaded
+INFO:root:********** Testing Part 6 [G] **********
+INFO:root:[G1,PASS] +  2 | mtime of 'hello.txt' is correctly read off disk
+INFO:root:[G2,PASS] +  2 | link count of pantryfs root is correct (nlink == 3)
+INFO:root:[G3,PASS] +  2 | size of 'names.txt' reported correctly
+INFO:root:[G4,PASS] +  4 | listing shows 'hello.txt' and 'members' with antagonistic image
+INFO:root:[G] Total: = 10
+INFO:root:Part6 probably ran cleanly (check dmesg too)
+INFO:root:*** DMESG: NONE ***
+INFO:root:******************END******************
+[Dec16 15:25] mypantryfs superblock destroyed. Unmount successful.
+[  +0.062275] Mounted mypantryfs on [/dev/loop0]
+[  +0.033781] mypantryfs superblock destroyed. Unmount successful.
+
+[36m### Cleaning up ###
+(B[mPrevious HEAD position was 0906536 Added readme explanation for block count and directory size.
+Switched to branch 'master'
+Your branch is up to date with 'origin/master'.
+[36m################### [35m(41-FireFerrises)[36m Pantry p6 ###################[39m
+[36m################### [35m(41-FireFerrises)[36m Pantry p7 ###################[39m
+[36m### Checking out hw8p7handin tag ###
+(B[mrmmod: ERROR: Module pantry is not currently loaded
+rmmod: ERROR: Module mypantryfs is not currently loaded
+INFO:root:********** Testing Part 7 [H] **********
+INFO:root:[H1,PASS] +  4 | Write succeeded and new contents read successfully
+INFO:root:[H2,PASS] +  4 | File size doesn't change after short write
+INFO:root:[H3,PASS] +  4 | Updated contents read successfully
+INFO:root:[H4,PASS] +  4 | File size increased after long write
+INFO:root:[H5,PASS] +  3 | O_TRUNC makes file size 0
+INFO:root:[H6,PASS] +  3 | Truncation correctly overwrote file
+INFO:root:[H7,PASS] +  4 | Handles writes exceeding PFS_BLOCK_SIZE
+INFO:root:[H8,PASS] +  4 | Updated contents persist
+INFO:root:[H] Total: = 30
+INFO:root:Part7 probably ran cleanly (check dmesg too)
+INFO:root:*** DMESG: NONE ***
+INFO:root:******************END******************
+[Dec16 15:25] mypantryfs superblock destroyed. Unmount successful.
+[  +0.012307] Mounted mypantryfs on [/dev/loop0]
+[  +0.028321] mypantryfs superblock destroyed. Unmount successful.
+
+[36m### Cleaning up ###
+(B[mPrevious HEAD position was 7b54ec4 Added part7 readme description.
+Switched to branch 'master'
+Your branch is up to date with 'origin/master'.
+[36m################### [35m(41-FireFerrises)[36m Pantry p7 ###################[39m
+[36m################### [35m(41-FireFerrises)[36m Pantry p8 ###################[39m
+[36m### Checking out hw8p8handin tag ###
+(B[mrmmod: ERROR: Module pantry is not currently loaded
+rmmod: ERROR: Module mypantryfs is not currently loaded
+INFO:root:********** Testing Part 8 [I] **********
+INFO:root:[I1,PASS] +  3 | 'new.txt' successfully opened with O_CREAT
+INFO:root:[I2,PASS] +  8 | Directory listing shows 'hello.txt', 'members', and 'new.txt'
+INFO:root:[I3,PASS] +  4 | New file has correct nlink, size, and mode (is a regular file)
+INFO:root:[I4,PASS] +  9 | New file can be written to and read from
+INFO:root:[I5,FAIL] +  0 | Directory listing for 'new.txt' persists
+INFO:root:[I6,PASS] +  4 | 13 more files successfully created
+INFO:root:[I7,PASS] +  4 | Filesystem reaches capacity after 16 files
+ERROR:root:umount failed: b'umount: /tmp/pantryfs_mnt: not mounted.\n'
+INFO:root:[I] Total: = 32
+INFO:root:Part8 ran with errors -- apply deduction
+INFO:root:*** DMESG: SOME ***
+INFO:root:******************END******************
+[Dec16 15:25] mypantryfs superblock destroyed. Unmount successful.
+[  +0.013381] /dev/loop0 is not formatted as mypantryfs, so could not mount it: found magic 69662077656e2061 instead of 4118
+[  +0.015191] BUG: kernel NULL pointer dereference, address: 0000000000000008
+[  +0.000006] #PF: supervisor read access in kernel mode
+[  +0.000002] #PF: error_code(0x0000) - not-present page
+[  +0.000001] PGD 0 P4D 0 
+[  +0.000004] Oops: 0000 [#1] SMP PTI
+[  +0.000004] CPU: 1 PID: 4115 Comm: mount Tainted: G           OE     5.10.0-8-amd64 #1 Debian 5.10.46-4
+[  +0.000001] Hardware name: VMware, Inc. VMware Virtual Platform/440BX Desktop Reference Platform, BIOS 6.00 07/22/2020
+[  +0.000005] RIP: 0010:pantryfs_kill_superblock+0x21/0x60 [mypantry]
+[  +0.000002] Code: bb 06 f7 66 0f 1f 44 00 00 0f 1f 44 00 00 55 53 48 8b af 88 03 00 00 48 89 fb e8 ba ef 03 f7 48 c7 83 88 03 00 00 00 00 00 00 <48> 8b 7d 08 48 85 ff 74 05 e8 d1 04 08 f7 48 8b 7d 00 48 85 ff 74
+[  +0.000002] RSP: 0018:ffffb1d080927de8 EFLAGS: 00010246
+[  +0.000003] RAX: 0000000000000000 RBX: ffff8990c1b46800 RCX: 0000000000000000
+[  +0.000001] RDX: 0000000000000002 RSI: ffff8990c041bbc0 RDI: ffff8990c041bc90
+[  +0.000001] RBP: 0000000000000000 R08: ffff8990cb097478 R09: ffffb1d080927cf0
+[  +0.000001] R10: 0000000000000000 R11: 0000000000000000 R12: ffffffffc0c86000
+[  +0.000001] R13: ffffffffffffffea R14: ffff8990c041bb18 R15: 0000000000000000
+[  +0.000003] FS:  00007febd7333840(0000) GS:ffff8991f5e40000(0000) knlGS:0000000000000000
+[  +0.000001] CS:  0010 DS: 0000 ES: 0000 CR0: 0000000080050033
+[  +0.000001] CR2: 0000000000000008 CR3: 0000000104706005 CR4: 00000000003706e0
+[  +0.000002] Call Trace:
+[  +0.000007]  deactivate_locked_super+0x31/0x90
+[  +0.000003]  mount_bdev+0x1a7/0x1b0
+[  +0.000003]  ? pantryfs_create_inode+0x190/0x190 [mypantry]
+[  +0.000003]  pantryfs_mount+0x35/0x50 [mypantry]
+[  +0.000003]  legacy_get_tree+0x27/0x40
+[  +0.000002]  vfs_get_tree+0x25/0xb0
+[  +0.000003]  path_mount+0x447/0xa60
+[  +0.000003]  __x64_sys_mount+0x103/0x140
+[  +0.000003]  do_syscall_64+0x33/0x80
+[  +0.000004]  entry_SYSCALL_64_after_hwframe+0x44/0xa9
+[  +0.000003] RIP: 0033:0x7febd75739ea
+[  +0.000003] Code: 48 8b 0d a9 f4 0b 00 f7 d8 64 89 01 48 83 c8 ff c3 66 2e 0f 1f 84 00 00 00 00 00 0f 1f 44 00 00 49 89 ca b8 a5 00 00 00 0f 05 <48> 3d 01 f0 ff ff 73 01 c3 48 8b 0d 76 f4 0b 00 f7 d8 64 89 01 48
+[  +0.000002] RSP: 002b:00007ffd32359548 EFLAGS: 00000246 ORIG_RAX: 00000000000000a5
+[  +0.000002] RAX: ffffffffffffffda RBX: 00007febd7696264 RCX: 00007febd75739ea
+[  +0.000001] RDX: 000055eac658bc60 RSI: 000055eac658bca0 RDI: 000055eac658bc80
+[  +0.000001] RBP: 000055eac658ba30 R08: 0000000000000000 R09: 00007febd7633be0
+[  +0.000002] R10: 0000000000000000 R11: 0000000000000246 R12: 0000000000000000
+[  +0.000001] R13: 000055eac658bc80 R14: 000055eac658bc60 R15: 000055eac658ba30
+[  +0.000002] Modules linked in: mypantry(OE) loop btusb btrtl btbcm btintel bluetooth jitterentropy_rng drbg intel_rapl_msr intel_rapl_common intel_pmc_core_pltdrv intel_pmc_core aes_generic ghash_clmulni_intel rapl vmw_balloon uvcvideo aesni_intel crypto_simd videobuf2_vmalloc videobuf2_memops cryptd videobuf2_v4l2 glue_helper videobuf2_common joydev serio_raw pcspkr videodev ansi_cprng snd_ens1371 snd_ac97_codec ac97_bus gameport snd_rawmidi snd_seq_device mc ecdh_generic rfkill ecc libaes snd_pcm snd_timer snd soundcore sg vsock_loopback vmw_vsock_virtio_transport_common vmw_vsock_vmci_transport vsock vmw_vmci evdev ac binfmt_misc fuse configfs ip_tables x_tables autofs4 ext4 crc16 mbcache jbd2 crc32c_generic sd_mod t10_pi crc_t10dif crct10dif_generic hid_generic usbhid hid sr_mod cdrom ata_generic crct10dif_pclmul crct10dif_common vmwgfx crc32_pclmul ttm drm_kms_helper crc32c_intel cec mptspi ata_piix mptscsih ehci_pci mptbase psmouse uhci_hcd ehci_hcd drm libata scsi_transport_spi
+[  +0.000077]  scsi_mod usbcore usb_common e1000 i2c_piix4 button [last unloaded: mypantry]
+[  +0.000010] CR2: 0000000000000008
+[  +0.000003] ---[ end trace 0e31451cc0c79722 ]---
+[  +0.000003] RIP: 0010:pantryfs_kill_superblock+0x21/0x60 [mypantry]
+[  +0.000002] Code: bb 06 f7 66 0f 1f 44 00 00 0f 1f 44 00 00 55 53 48 8b af 88 03 00 00 48 89 fb e8 ba ef 03 f7 48 c7 83 88 03 00 00 00 00 00 00 <48> 8b 7d 08 48 85 ff 74 05 e8 d1 04 08 f7 48 8b 7d 00 48 85 ff 74
+[  +0.000001] RSP: 0018:ffffb1d080927de8 EFLAGS: 00010246
+[  +0.000002] RAX: 0000000000000000 RBX: ffff8990c1b46800 RCX: 0000000000000000
+[  +0.000001] RDX: 0000000000000002 RSI: ffff8990c041bbc0 RDI: ffff8990c041bc90
+[  +0.000001] RBP: 0000000000000000 R08: ffff8990cb097478 R09: ffffb1d080927cf0
+[  +0.000001] R10: 0000000000000000 R11: 0000000000000000 R12: ffffffffc0c86000
+[  +0.000001] R13: ffffffffffffffea R14: ffff8990c041bb18 R15: 0000000000000000
+[  +0.000003] FS:  00007febd7333840(0000) GS:ffff8991f5e40000(0000) knlGS:0000000000000000
+[  +0.000001] CS:  0010 DS: 0000 ES: 0000 CR0: 0000000080050033
+[  +0.000001] CR2: 0000000000000008 CR3: 0000000104706005 CR4: 00000000003706e0
+
+[36m### Cleaning up ###
+(B[mPrevious HEAD position was 682c505 Updated readme.
+Switched to branch 'master'
+Your branch is up to date with 'origin/master'.
+[36m################### [35m(41-FireFerrises)[36m Pantry p8 ###################[39m
+################### (41-FireFerrises) Pantry p9 ###################
+### Checking out hw8p9handin tag ###
+rmmod: ERROR: Module pantry is not currently loaded
+rmmod: ERROR: Module mypantry is not currently loaded
+rmmod: ERROR: Module mypantryfs is not currently loaded
+INFO:root:********** Testing Part 9 [J] **********
+INFO:root:[J1,PASS] +  9 | 'hello.txt' deleted successfully
+INFO:root:[J2,FAIL] +  0 | 'hello.txt' deletion persists after remount.
+INFO:root:[J3,PASS] +  9 | 15 files created and deleted (20 times)
+INFO:root:[J4,PASS] +  9 | File that is still opened can be removed
+INFO:root:[J5,PASS] +  8 | File that is still opened can be read/written to after removal
+ERROR:root:umount failed: b'umount: /tmp/pantryfs_mnt: not mounted.\n'
+INFO:root:[J6,FAIL] +  0 | File that is still opened can be removed (test 2)
+INFO:root:[J7,FAIL] +  0 | File that is still opened can be read/written to (test 2)
+ERROR:root:umount failed: b'umount: /tmp/pantryfs_mnt: not mounted.\n'
+INFO:root:[J] Total: = 35
+INFO:root:Part9 ran with errors -- apply deduction
+[Dec16 15:28] mypantryfs superblock destroyed. Unmount successful.
+[  +0.032340] general protection fault, probably for non-canonical address 0xe1878bede654db5f: 0000 [#1] SMP PTI
+[  +0.000006] CPU: 1 PID: 1209 Comm: mount Tainted: G           OE     5.10.0-8-amd64 #1 Debian 5.10.46-4
+[  +0.000002] Hardware name: VMware, Inc. VMware Virtual Platform/440BX Desktop Reference Platform, BIOS 6.00 07/22/2020
+[  +0.000006] RIP: 0010:__brelse+0x5/0x20
+[  +0.000002] Code: 00 48 89 f2 48 c1 fa 06 48 c1 e2 0c 48 03 15 72 fa e6 00 48 01 c2 48 89 57 28 c3 0f 0b 0f 1f 84 00 00 00 00 00 0f 1f 44 00 00 <8b> 47 60 85 c0 74 05 f0 ff 4f 60 c3 48 c7 c7 28 9e 6f a8 e8 f6 6a
+[  +0.000002] RSP: 0018:ffffb0ef8152fde0 EFLAGS: 00010286
+[  +0.000003] RAX: 0000000000000000 RBX: ffff8f3856ec0000 RCX: 0000000000000000
+[  +0.000001] RDX: 0000000000000002 RSI: ffff8f384041cc00 RDI: e1878bede654db5f
+[  +0.000002] RBP: ffff8f3850fd6bf0 R08: ffff8f3856de1598 R09: ffffb0ef8152fcf0
+[  +0.000001] R10: ffff8f3975e6bc80 R11: 0000000000000000 R12: ffffffffc0941000
+[  +0.000001] R13: fffffffffffffffb R14: ffff8f384041cb58 R15: 0000000000000000
+[  +0.000002] FS:  00007fbaa8ab9840(0000) GS:ffff8f3975e40000(0000) knlGS:0000000000000000
+[  +0.000002] CS:  0010 DS: 0000 ES: 0000 CR0: 0000000080050033
+[  +0.000001] CR2: 00007ffc69740d58 CR3: 0000000106714001 CR4: 00000000003706e0
+[  +0.000002] Call Trace:
+[  +0.000008]  pantryfs_kill_superblock+0x2f/0x60 [mypantry]
+[  +0.000004]  deactivate_locked_super+0x31/0x90
+[  +0.000003]  mount_bdev+0x1a7/0x1b0
+[  +0.000003]  ? pantryfs_create_inode+0x190/0x190 [mypantry]
+[  +0.000003]  pantryfs_mount+0x35/0x50 [mypantry]
+[  +0.000002]  legacy_get_tree+0x27/0x40
+[  +0.000002]  vfs_get_tree+0x25/0xb0
+[  +0.000003]  path_mount+0x447/0xa60
+[  +0.000003]  __x64_sys_mount+0x103/0x140
+[  +0.000004]  do_syscall_64+0x33/0x80
+[  +0.000005]  entry_SYSCALL_64_after_hwframe+0x44/0xa9
+[  +0.000003] RIP: 0033:0x7fbaa8cf99ea
+[  +0.000003] Code: 48 8b 0d a9 f4 0b 00 f7 d8 64 89 01 48 83 c8 ff c3 66 2e 0f 1f 84 00 00 00 00 00 0f 1f 44 00 00 49 89 ca b8 a5 00 00 00 0f 05 <48> 3d 01 f0 ff ff 73 01 c3 48 8b 0d 76 f4 0b 00 f7 d8 64 89 01 48
+[  +0.000002] RSP: 002b:00007ffc697425b8 EFLAGS: 00000246 ORIG_RAX: 00000000000000a5
+[  +0.000002] RAX: ffffffffffffffda RBX: 00007fbaa8e1c264 RCX: 00007fbaa8cf99ea
+[  +0.000001] RDX: 000055706af18c60 RSI: 000055706af18ca0 RDI: 000055706af18c80
+[  +0.000001] RBP: 000055706af18a30 R08: 0000000000000000 R09: 00007fbaa8db9be0
+[  +0.000002] R10: 0000000000000000 R11: 0000000000000246 R12: 0000000000000000
+[  +0.000001] R13: 000055706af18c80 R14: 000055706af18c60 R15: 000055706af18a30
+[  +0.000002] Modules linked in: loop mypantry(OE) btusb btrtl btbcm btintel bluetooth jitterentropy_rng drbg intel_rapl_msr intel_rapl_common intel_pmc_core_pltdrv intel_pmc_core aes_generic ghash_clmulni_intel rapl vmw_balloon aesni_intel crypto_simd cryptd glue_helper joydev ansi_cprng uvcvideo snd_ens1371 videobuf2_vmalloc snd_ac97_codec videobuf2_memops ac97_bus gameport videobuf2_v4l2 ecdh_generic rfkill snd_rawmidi snd_seq_device videobuf2_common serio_raw pcspkr ecc libaes snd_pcm videodev snd_timer mc snd soundcore sg vsock_loopback vmw_vsock_virtio_transport_common vmw_vsock_vmci_transport vsock vmw_vmci ac evdev binfmt_misc fuse configfs ip_tables x_tables autofs4 ext4 crc16 mbcache jbd2 crc32c_generic sd_mod t10_pi crc_t10dif crct10dif_generic hid_generic usbhid hid sr_mod cdrom ata_generic crct10dif_pclmul crct10dif_common crc32_pclmul crc32c_intel vmwgfx ttm drm_kms_helper mptspi mptscsih psmouse ata_piix ehci_pci uhci_hcd ehci_hcd cec libata usbcore drm mptbase
+[  +0.000068]  scsi_transport_spi e1000 usb_common i2c_piix4 scsi_mod button
+[  +0.000009] ---[ end trace 2f4a5300d5d3f105 ]---
+[  +0.000003] RIP: 0010:__brelse+0x5/0x20
+[  +0.000002] Code: 00 48 89 f2 48 c1 fa 06 48 c1 e2 0c 48 03 15 72 fa e6 00 48 01 c2 48 89 57 28 c3 0f 0b 0f 1f 84 00 00 00 00 00 0f 1f 44 00 00 <8b> 47 60 85 c0 74 05 f0 ff 4f 60 c3 48 c7 c7 28 9e 6f a8 e8 f6 6a
+[  +0.000002] RSP: 0018:ffffb0ef8152fde0 EFLAGS: 00010286
+[  +0.000002] RAX: 0000000000000000 RBX: ffff8f3856ec0000 RCX: 0000000000000000
+[  +0.000001] RDX: 0000000000000002 RSI: ffff8f384041cc00 RDI: e1878bede654db5f
+[  +0.000001] RBP: ffff8f3850fd6bf0 R08: ffff8f3856de1598 R09: ffffb0ef8152fcf0
+[  +0.000002] R10: ffff8f3975e6bc80 R11: 0000000000000000 R12: ffffffffc0941000
+[  +0.000001] R13: fffffffffffffffb R14: ffff8f384041cb58 R15: 0000000000000000
+[  +0.000002] FS:  00007fbaa8ab9840(0000) GS:ffff8f3975e40000(0000) knlGS:0000000000000000
+[  +0.000001] CS:  0010 DS: 0000 ES: 0000 CR0: 0000000080050033
+[  +0.000001] CR2: 00007ffc69740d58 CR3: 0000000106714001 CR4: 00000000003706e0
+
+INFO:root:*** DMESG: SOME ***
+INFO:root:******************END******************
+### Cleaning up ###
+Previous HEAD position was 91079d7 Updated readme.
+Switched to branch 'master'
+Your branch is up to date with 'origin/master'.
+################### (41-FireFerrises) Pantry p9 ###################
