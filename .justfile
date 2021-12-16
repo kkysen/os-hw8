@@ -808,6 +808,7 @@ unlink-while-open path:
     path = "{{path}}"
     f = open(path, "w+")
     f.write(path)
+    f.flush()
     print(f"ls -alF {path}")
     subprocess.call(["ls", "-alF", path])
     print(f"rm {path}")
@@ -898,13 +899,19 @@ explore-a-pantry mod_path func: (make "format_disk_as_pantryfs")
         bat world
         touch world
 
-        cd "{{just_dir}}" && just creat-excl "${mnt}/world" EEXIST
+        (cd "{{just_dir}}" && just creat-excl "${mnt}/world" EEXIST)
 
         ls -alF world
+        bat world
         rm world
         ls -alF world
+        bat world
 
-        cd "{{just_dir}}" && just unlink-while-open "${mnt}/x"
+        cd members
+        for i in {1..10}; do touch {1..14}; rm {1..14}; done
+        cd ..
+
+        # (cd "{{just_dir}}" && just unlink-while-open "${mnt}/x")
     }
 
     all() {
@@ -935,3 +942,5 @@ test-part6: explore-mypantry
 test-part7: explore-mypantry
 
 test-part8: explore-mypantry
+
+test-part9: explore-mypantry

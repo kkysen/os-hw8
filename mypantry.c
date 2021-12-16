@@ -118,6 +118,9 @@ int pantryfs_file_get(struct inode *inode, struct pantryfs_file *file)
 	file->vfs_inode = inode;
 	file->inode = (struct pantryfs_inode *)file->vfs_inode->i_private;
 	file->root = pantryfs_root_get(file->vfs_inode->i_sb);
+	if (!IS_SET(file->root.sb->free_data_blocks,
+		    file->inode->data_block_number))
+		return -ENOENT;
 	file->block =
 		sb_bread(file->root.vfs_sb, file->inode->data_block_number);
 	if (!file->block)
@@ -553,6 +556,7 @@ int pantryfs_create(struct inode *parent, struct dentry *child_dentry,
 int pantryfs_unlink(struct inode *parent, struct dentry *dentry)
 {
 	int e;
+	struct inode *inode;
 	struct pantryfs_dir dir;
 	struct buffer_head *block;
 	size_t i;
@@ -563,7 +567,8 @@ int pantryfs_unlink(struct inode *parent, struct dentry *dentry)
 		goto ret;
 	// don't support removing directories yet
 	// i.e. `unlink` w/ `AT_REMOVEDIR` or `rmdir`
-	e = pantryfs_reg_file_check(d_inode(dentry));
+	inode = d_inode(dentry);
+	e = pantryfs_reg_file_check(inode);
 	if (e < 0)
 		goto ret;
 	e = pantryfs_dir_get(parent, &dir);
@@ -583,6 +588,7 @@ int pantryfs_unlink(struct inode *parent, struct dentry *dentry)
 		e = -ENOENT;
 		goto free_block;
 	}
+	inode_dec_link_count(inode);
 	mark_buffer_dirty(block);
 
 free_block:
@@ -641,7 +647,10 @@ void pantryfs_evict_inode(struct inode *inode)
 	if (i < PFS_MAX_INODES) {
 		CLEARBIT(root.sb->free_inodes, i);
 		CLEARBIT(root.sb->free_data_blocks, i);
+	} else {
+		pr_err("%s out-of-bounds: %zu/%zu\n", __func__, i, PFS_MAX_INODES);
 	}
+	mark_buffer_dirty(root.buf_heads->sb_bh);
 
 	/* Required to be called by VFS. If not called, evict() will BUG out.*/
 	truncate_inode_pages_final(&inode->i_data);
