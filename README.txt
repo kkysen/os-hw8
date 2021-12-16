@@ -170,4 +170,11 @@ we refactored them both into `pantryfs_lookup_or_create`, which can do either.
 
 
 ### Part 9
-TODO
+This part is mostly working.
+
+We can unlink and evict files,
+and they are evicted as soon as the link count reaches 0.
+However, when we tried testing unlinking
+with a file descriptor still open,
+using it, and then closing it to evict the inode,
+that kept stalling the kernel.

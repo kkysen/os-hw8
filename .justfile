@@ -907,9 +907,7 @@ explore-a-pantry mod_path func: (make "format_disk_as_pantryfs")
         ls -alF world
         bat world
 
-        cd members
-        for i in {1..10}; do touch {1..14}; rm {1..14}; done
-        cd ..
+        (cd members && for i in {1..10}; do touch {1..14}; rm {1..14}; done)
 
         # (cd "{{just_dir}}" && just unlink-while-open "${mnt}/x")
     }

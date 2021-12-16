@@ -648,7 +648,8 @@ void pantryfs_evict_inode(struct inode *inode)
 		CLEARBIT(root.sb->free_inodes, i);
 		CLEARBIT(root.sb->free_data_blocks, i);
 	} else {
-		pr_err("%s out-of-bounds: %zu/%zu\n", __func__, i, PFS_MAX_INODES);
+		pr_err("%s out-of-bounds: %zu/%zu\n", __func__, i,
+		       PFS_MAX_INODES);
 	}
 	mark_buffer_dirty(root.buf_heads->sb_bh);
 
