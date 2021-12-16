@@ -785,6 +785,20 @@ explore-ext2:
 is-pantry-mounted:
     mount | rg 'type (my)?pantryfs' > /dev/null
 
+creat-excl path errno="":
+    #!/usr/bin/env python3
+    import os
+    import errno
+
+    os.chdir("{{cwd}}")
+    e_name = "{{errno}}"
+    e_val = getattr(errno, e_name) if e_name not in ("", "0") else 0
+    try:
+        os.open("{{path}}", os.O_CREAT | os.O_EXCL)
+    except Exception as e:
+        if e.errno != e_val:
+            raise
+
 explore-a-pantry mod_path func: (make "format_disk_as_pantryfs")
     #!/usr/bin/env bash
     set -euox pipefail
@@ -858,6 +872,15 @@ explore-a-pantry mod_path func: (make "format_disk_as_pantryfs")
         echo "Hi w4118!" > hello.txt
         cat hello.txt
         ls -l hello.txt
+
+        touch world
+        ls -alF world
+        echo world > world
+        ls -alF world
+        bat world
+        touch world
+
+        cd "{{just_dir}}" && just creat-excl "${mnt}/world" EEXIST
     }
 
     all() {
@@ -886,3 +909,5 @@ test-part5: explore-mypantry
 test-part6: explore-mypantry
 
 test-part7: explore-mypantry
+
+test-part8: explore-mypantry
