@@ -143,7 +143,19 @@ which is why the correction is needed.
 
 
 ### Part 7
-TODO
+This part is working.
+
+For `pantryfs_write`, since so much of it's very similar to `pantryfs_read`,
+like all the position handling and loading the data block,
+we refactored them into `pantryfs_read_or_write`,
+which just does a few things different between read and write,
+like using `copy_to_user` vs. `copy_from_user`,
+potentially increasing the size for write,
+updating the mtime for write,
+and marking the buffer and inode (for mtime) dirty for write.
+
+For `pantryfs_fsync`, we just called `generic_file_fsync`.
+This is what ext2 does, and it seems to work perfectly fine for us, too.
 
 
 ### Part 8
