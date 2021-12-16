@@ -550,15 +550,46 @@ int pantryfs_create(struct inode *parent, struct dentry *child_dentry,
 					 /* create */ true, mode, excl);
 }
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-
-int pantryfs_unlink(struct inode *dir, struct dentry *dentry)
+int pantryfs_unlink(struct inode *parent, struct dentry *dentry)
 {
-	return -ENOSYS;
-}
+	int e;
+	struct pantryfs_dir dir;
+	struct buffer_head *block;
+	size_t i;
 
-#pragma GCC diagnostic pop // "-Wunused-parameter"
+	e = 0;
+	e = pantryfs_dir_check(parent);
+	if (e < 0)
+		goto ret;
+	// don't support removing directories yet
+	// i.e. `unlink` w/ `AT_REMOVEDIR` or `rmdir`
+	e = pantryfs_reg_file_check(d_inode(dentry));
+	if (e < 0)
+		goto ret;
+	e = pantryfs_dir_get(parent, &dir);
+	if (e < 0)
+		goto ret;
+	block = dir.file.block;
+	for (i = 0; i < PFS_MAX_CHILDREN; i++) {
+		struct pantryfs_dir_entry *raw_dentry;
+
+		raw_dentry = &dir.dentries[i];
+		if (pantryfs_dentry_eq_name(dentry, raw_dentry)) {
+			raw_dentry->active = false;
+			break;
+		}
+	}
+	if (i >= PFS_MAX_CHILDREN) {
+		e = -ENOENT;
+		goto free_block;
+	}
+	mark_buffer_dirty(block);
+
+free_block:
+	brelse(block);
+ret:
+	return e;
+}
 
 int pantryfs_write_inode(struct inode *mut_inode, struct writeback_control *wbc)
 {
@@ -600,6 +631,18 @@ ret:
 
 void pantryfs_evict_inode(struct inode *inode)
 {
+	struct pantryfs_root root;
+	size_t i;
+
+	root = pantryfs_root_get(inode->i_sb);
+	i = inode->i_ino - 1;
+	// can't do any error handling here (void return)
+	// but still should avoid UB
+	if (i < PFS_MAX_INODES) {
+		CLEARBIT(root.sb->free_inodes, i);
+		CLEARBIT(root.sb->free_data_blocks, i);
+	}
+
 	/* Required to be called by VFS. If not called, evict() will BUG out.*/
 	truncate_inode_pages_final(&inode->i_data);
 	clear_inode(inode);
