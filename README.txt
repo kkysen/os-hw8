@@ -159,7 +159,14 @@ This is what ext2 does, and it seems to work perfectly fine for us, too.
 
 
 ### Part 8
-TODO
+This part is mostly working.
+
+Sometimes on unmount, it says target is busy.
+Then when we forcefully unmount it (`umount -l`),
+it doesn't save the changes to disk.
+
+Since `pantryfs_lookup` and `pantryfs_create` would be quite similar,
+we refactored them both into `pantryfs_lookup_or_create`, which can do either.
 
 
 ### Part 9
