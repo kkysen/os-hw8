@@ -404,6 +404,7 @@ struct inode *pantryfs_create_new_inode(struct pantryfs_dir *dir,
 	else
 		inode->i_size = 0;
 	inode->i_blocks = PFS_BLOCK_SIZE / 512 + (PFS_BLOCK_SIZE % 512 != 0);
+	mark_inode_dirty(inode);
 	unlock_new_inode(inode);
 
 ret:
