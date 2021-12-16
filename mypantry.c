@@ -310,14 +310,10 @@ ssize_t pantryfs_read_or_write(struct file *file, char __user *buf, size_t len,
 	}
 	end = start + len;
 	if (write) {
-		if (end > size) {
-			pr_info("expanding file size for inode %lu from %zu to %zu\n",
-				inode->i_ino, size, end);
+		if (end > size)
 			inode->i_size = (loff_t)end;
-		}
 		inode->i_mtime = inode->i_atime;
 		mark_inode_dirty(inode);
-		pr_info("writing block for inode %lu\n", inode->i_ino);
 		mark_buffer_dirty(block);
 	}
 	*ppos = (loff_t)end;
@@ -445,12 +441,9 @@ int pantryfs_write_inode(struct inode *mut_inode, struct writeback_control *wbc)
 	pantry_inode->file_size = (uint64_t)inode->i_size; // checked
 
 	block = root.buf_heads->i_store_bh;
-	pr_info("updating inode %lu\n", inode->i_ino);
 	mark_buffer_dirty(block);
-	if (wbc->sync_mode == WB_SYNC_ALL) {
-		pr_info("syncing inode %lu\n", inode->i_ino);
+	if (wbc->sync_mode == WB_SYNC_ALL)
 		sync_dirty_buffer(block);
-	}
 
 ret:
 	return e;
@@ -465,8 +458,6 @@ void pantryfs_evict_inode(struct inode *inode)
 
 int pantryfs_fsync(struct file *file, loff_t start, loff_t end, int datasync)
 {
-	pr_info("fsync(inode = %lu, start = %lld, end = %lld, datasync = %d)\n",
-		file_inode(file)->i_ino, start, end, datasync);
 	return generic_file_fsync(file, start, end, datasync);
 }
 
