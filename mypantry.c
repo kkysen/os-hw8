@@ -6,6 +6,7 @@
 #include <linux/fs.h>
 #include <linux/init.h>
 #include <linux/module.h>
+#include <linux/writeback.h>
 
 #include "pantryfs_inode.h"
 #include "pantryfs_inode_ops.h"
@@ -257,6 +258,7 @@ ssize_t pantryfs_read_or_write(struct file *file, char __user *buf, size_t len,
 	size_t size_remaining;
 	size_t end;
 	struct pantryfs_reg_file reg_file;
+	struct buffer_head *block;
 	char *ptr;
 	unsigned long bytes_left;
 
@@ -272,7 +274,7 @@ ssize_t pantryfs_read_or_write(struct file *file, char __user *buf, size_t len,
 		e = -EIO;
 		goto ret;
 	}
-	size = (size_t) inode->i_size;
+	size = (size_t)inode->i_size;
 	if (write)
 		max_size = PFS_BLOCK_SIZE;
 	else
@@ -296,6 +298,7 @@ ssize_t pantryfs_read_or_write(struct file *file, char __user *buf, size_t len,
 	e = pantryfs_reg_file_get(inode, &reg_file);
 	if (e < 0)
 		goto ret;
+	block = reg_file.file.block;
 	ptr = &reg_file.data[start];
 	if (write)
 		bytes_left = copy_from_user(ptr, buf, len);
@@ -307,15 +310,19 @@ ssize_t pantryfs_read_or_write(struct file *file, char __user *buf, size_t len,
 	}
 	end = start + len;
 	if (write) {
-		if (end > size)
-			inode->i_size = (loff_t) end;
+		if (end > size) {
+			pr_info("expanding file size for inode %lu from %zu to %zu\n",
+				inode->i_ino, size, end);
+			inode->i_size = (loff_t)end;
+		}
 		inode->i_mtime = inode->i_atime;
 		mark_inode_dirty(inode);
-		mark_buffer_dirty_inode(reg_file.file.block, inode);
+		pr_info("writing block for inode %lu\n", inode->i_ino);
+		mark_buffer_dirty(block);
 	}
-	*ppos = (loff_t) end;
+	*ppos = (loff_t)end;
 free_block:
-	brelse(reg_file.file.block);
+	brelse(block);
 ret:
 	if (e < 0)
 		return (ssize_t)e;
@@ -408,13 +415,13 @@ int pantryfs_unlink(struct inode *dir, struct dentry *dentry)
 
 #pragma GCC diagnostic pop // "-Wunused-parameter"
 
-int pantryfs_write_inode(struct inode *mut_inode,
-			 struct writeback_control *wbc __always_unused)
+int pantryfs_write_inode(struct inode *mut_inode, struct writeback_control *wbc)
 {
 	int e;
 	const struct inode *inode;
 	struct pantryfs_inode *pantry_inode;
 	struct pantryfs_root root;
+	struct buffer_head *block;
 
 	e = 0;
 	inode = mut_inode;
@@ -437,14 +444,17 @@ int pantryfs_write_inode(struct inode *mut_inode,
 	pantry_inode->nlink = inode->i_nlink;
 	pantry_inode->file_size = (uint64_t)inode->i_size; // checked
 
-	mark_buffer_dirty(root.buf_heads->i_store_bh);
+	block = root.buf_heads->i_store_bh;
+	pr_info("updating inode %lu\n", inode->i_ino);
+	mark_buffer_dirty(block);
+	if (wbc->sync_mode == WB_SYNC_ALL) {
+		pr_info("syncing inode %lu\n", inode->i_ino);
+		sync_dirty_buffer(block);
+	}
 
 ret:
 	return e;
 }
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-parameter"
 
 void pantryfs_evict_inode(struct inode *inode)
 {
@@ -455,10 +465,10 @@ void pantryfs_evict_inode(struct inode *inode)
 
 int pantryfs_fsync(struct file *file, loff_t start, loff_t end, int datasync)
 {
-	return -ENOSYS;
+	pr_info("fsync(inode = %lu, start = %lld, end = %lld, datasync = %d)\n",
+		file_inode(file)->i_ino, start, end, datasync);
+	return generic_file_fsync(file, start, end, datasync);
 }
-
-#pragma GCC diagnostic pop // "-Wunused-parameter"
 
 ssize_t pantryfs_write(struct file *file, const char __user *buf, size_t len,
 		       loff_t *ppos)
