@@ -629,10 +629,11 @@ static void pantryfs_kill_superblock(struct super_block *sb)
 	struct pantryfs_sb_buffer_heads *buf_heads;
 
 	buf_heads = (struct pantryfs_sb_buffer_heads *)sb->s_fs_info;
+	kill_block_super(sb);
+	sb->s_fs_info = NULL;
 	brelse(buf_heads->i_store_bh);
 	brelse(buf_heads->sb_bh);
 	kfree(buf_heads);
-	kill_block_super(sb);
 	pr_info("mypantryfs superblock destroyed. Unmount successful.\n");
 }
 
