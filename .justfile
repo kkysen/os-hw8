@@ -799,6 +799,24 @@ creat-excl path errno="":
         if e.errno != e_val:
             raise
 
+unlink-while-open path:
+    #!/usr/bin/env python3
+    import os
+    import subprocess
+
+    os.chdir("{{cwd}}")
+    path = "{{path}}"
+    f = open(path, "w+")
+    f.write(path)
+    print(f"ls -alF {path}")
+    subprocess.call(["ls", "-alF", path])
+    print(f"rm {path}")
+    os.unlink(path)
+    print(f"ls -alF {path}")
+    subprocess.call(["ls", "-alF", path])
+    contents = f.read()
+    assert contents == path
+
 explore-a-pantry mod_path func: (make "format_disk_as_pantryfs")
     #!/usr/bin/env bash
     set -euox pipefail
@@ -881,6 +899,12 @@ explore-a-pantry mod_path func: (make "format_disk_as_pantryfs")
         touch world
 
         cd "{{just_dir}}" && just creat-excl "${mnt}/world" EEXIST
+
+        ls -alF world
+        rm world
+        ls -alF world
+
+        cd "{{just_dir}}" && just unlink-while-open "${mnt}/x"
     }
 
     all() {
